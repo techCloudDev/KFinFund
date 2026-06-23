@@ -38,13 +38,12 @@ Database: "kfinfund"
 
 Users Table
 
-Column| Type
-id| SERIAL PRIMARY KEY
-full_name| VARCHAR(100)
-email| VARCHAR(100) UNIQUE
-password| VARCHAR(255)
-phone| VARCHAR(15)
-created_at| TIMESTAMP
+id - SERIAL PRIMARY KEY
+full_name - VARCHAR(100)
+email - VARCHAR(100) UNIQUE
+password - VARCHAR(255)
+phone - VARCHAR(15)
+created_at - TIMESTAMP
 
 Tech Stack
 
