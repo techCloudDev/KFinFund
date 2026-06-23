@@ -1,5 +1,4 @@
 require("dotenv").config();
-
 const express = require("express");
 const cors = require("cors");
 const pool = require("./config/db");
@@ -17,23 +16,26 @@ app.use("/api/users", userRoutes);
 app.get("/", async (req, res) => {
   try {
     const result = await pool.query("SELECT NOW()");
-
     res.json({
       message: "User Service Running",
       databaseTime: result.rows[0].now
     });
-
   } catch (error) {
     console.error(error);
-
     res.status(500).json({
       error: "Database connection failed"
     });
   }
 });
 
-const PORT = process.env.PORT || 3001;
+// Handle unknown routes
+app.use((req, res) => {
+  res.status(404).json({
+    error: "Route not found"
+  });
+});
 
+const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`✅ User Service running on port ${PORT}`);
 });
