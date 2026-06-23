@@ -1,4 +1,4 @@
-#User Service
+User Service
 
 The User Service is responsible for user registration, authentication, authorization, and profile management within the KFinFund platform.
 
