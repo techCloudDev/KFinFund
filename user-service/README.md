@@ -6,7 +6,7 @@ Features Implemented
 
 User Registration
 
-Endpoint
+Endpoint.
 
 POST /api/users/register
 
