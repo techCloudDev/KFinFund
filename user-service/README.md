@@ -177,7 +177,10 @@ user-service/
 │   └── app.js
 │
 ├── .env
+├── .env.example
+├── init.sql
 ├── package.json
+├── package-lock.json
 └── README.md
 
 ⸻
