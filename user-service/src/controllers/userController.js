@@ -1,6 +1,11 @@
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
-const { createUser, getUserByEmail } = require("../models/userModel");
+const {
+  createUser,
+  getUserByEmail,
+  getUserById,
+  updateUserProfile
+} = require("../models/userModel");
 
 const registerUser = async (req, res) => {
   try {
@@ -78,5 +83,57 @@ const loginUser = async (req, res) => {
     });
   }
 };
+const getProfile = async (req, res) => {
+  try {
+    const user = await getUserById(req.user.id);
 
-module.exports = { registerUser, loginUser };
+    if (!user) {
+      return res.status(404).json({
+        error: "User not found"
+      });
+    }
+
+    res.json(user);
+
+  } catch (error) {
+    console.error(error);
+
+    res.status(500).json({
+      error: "Failed to fetch profile"
+    });
+  }
+};
+const updateProfile = async (req, res) => {
+  try {
+
+    const { full_name, phone } = req.body;
+
+    const updatedUser =
+      await updateUserProfile(
+        req.user.id,
+        full_name,
+        phone
+      );
+
+    res.json({
+      message: "Profile updated successfully",
+      user: updatedUser
+    });
+
+  } catch (error) {
+
+    console.error(error);
+
+    res.status(500).json({
+      error: "Profile update failed"
+    });
+  }
+};
+module.exports = {
+  registerUser,
+  loginUser,
+  getProfile,
+  updateProfile
+};
+
+
