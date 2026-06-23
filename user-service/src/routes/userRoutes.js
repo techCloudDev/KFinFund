@@ -8,7 +8,8 @@ const {
   registerUser,
   loginUser,
   getProfile,
-  updateProfile
+  updateProfile,
+  changePassword
 } = require("../controllers/userController");
 
 router.post("/register", registerUser);
@@ -20,5 +21,9 @@ router.put(
   verifyToken,
   updateProfile
 );
-
+router.put(
+  "/change-password",
+  verifyToken,
+  changePassword
+);
 module.exports = router;

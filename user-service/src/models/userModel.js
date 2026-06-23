@@ -75,10 +75,33 @@ const updateUserProfile = async (
     throw error;
   }
 };
+const updatePassword = async (id, hashedPassword) => {
+  try {
+    const result = await pool.query(
+      `
+      UPDATE users
+      SET password = $1
+      WHERE id = $2
+      RETURNING id
+      `,
+      [hashedPassword, id]
+    );
+
+    return result.rows[0];
+  } catch (error) {
+    console.error(
+      "❌ Error updating password:",
+      error.message
+    );
+    throw error;
+  }
+};
 module.exports = {
   createUser,
   getUserByEmail,
   getUserById,
-  updateUserProfile
+  updateUserProfile,
+  updatePassword
 };
+
 
