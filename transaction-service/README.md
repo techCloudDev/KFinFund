@@ -1,4 +1,3 @@
-﻿# Transaction Service
 # Transaction Service
 
 The Transaction Service is a core microservice of the KFinFund platform responsible for managing mutual fund investment transactions and portfolio information.
