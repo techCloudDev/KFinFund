@@ -9,6 +9,7 @@ const {
 } = require("../models/userModel");
 
 const registerUser = async (req, res) => {
+  console.log("BODY RECEIVED:", req.body);
   try {
     const { full_name, email, password, phone } = req.body;
 
