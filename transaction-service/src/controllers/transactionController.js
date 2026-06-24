@@ -19,7 +19,19 @@ const buyFund = async (req, res) => {
       });
     }
 
-    const units = amount / nav;
+    if (nav <= 0) {
+      return res.status(400).json({
+        error: "NAV must be greater than zero"
+      });
+    }
+
+    if (amount <= 0) {
+      return res.status(400).json({
+        error: "Amount must be greater than zero"
+      });
+    }
+
+    const units = Number((amount / nav).toFixed(4));
 
     const transaction = await createTransaction(
       userId,
@@ -30,15 +42,15 @@ const buyFund = async (req, res) => {
       nav
     );
 
-    res.status(201).json({
+    return res.status(201).json({
       message: "Fund purchased successfully",
       transaction
     });
 
   } catch (error) {
-    console.error(error);
+    console.error("Buy Fund Error:", error);
 
-    res.status(500).json({
+    return res.status(500).json({
       error: "Failed to buy fund"
     });
   }
@@ -60,7 +72,19 @@ const redeemFund = async (req, res) => {
       });
     }
 
-    const amount = units * nav;
+    if (nav <= 0) {
+      return res.status(400).json({
+        error: "NAV must be greater than zero"
+      });
+    }
+
+    if (units <= 0) {
+      return res.status(400).json({
+        error: "Units must be greater than zero"
+      });
+    }
+
+    const amount = Number((units * nav).toFixed(2));
 
     const transaction = await createTransaction(
       userId,
@@ -71,15 +95,15 @@ const redeemFund = async (req, res) => {
       nav
     );
 
-    res.status(201).json({
+    return res.status(201).json({
       message: "Fund redeemed successfully",
       transaction
     });
 
   } catch (error) {
-    console.error(error);
+    console.error("Redeem Fund Error:", error);
 
-    res.status(500).json({
+    return res.status(500).json({
       error: "Failed to redeem fund"
     });
   }
@@ -89,15 +113,17 @@ const getTransactionHistory = async (req, res) => {
   try {
     const userId = req.user.id;
 
-    const transactions =
-      await getTransactionsByUser(userId);
+    const transactions = await getTransactionsByUser(userId);
 
-    res.json(transactions);
+    return res.status(200).json({
+      count: transactions.length,
+      transactions
+    });
 
   } catch (error) {
-    console.error(error);
+    console.error("Transaction History Error:", error);
 
-    res.status(500).json({
+    return res.status(500).json({
       error: "Failed to fetch transaction history"
     });
   }
@@ -107,27 +133,28 @@ const getPortfolio = async (req, res) => {
   try {
     const userId = req.user.id;
 
-    const transactions =
-      await getTransactionsByUser(userId);
+    const transactions = await getTransactionsByUser(userId);
 
     let totalInvestment = 0;
 
     transactions.forEach((txn) => {
       if (txn.transaction_type === "BUY") {
         totalInvestment += Number(txn.amount);
+      } else if (txn.transaction_type === "REDEEM") {
+        totalInvestment -= Number(txn.amount);
       }
     });
 
-    res.json({
+    return res.status(200).json({
       userId,
-      totalInvestment,
+      totalInvestment: Number(totalInvestment.toFixed(2)),
       totalTransactions: transactions.length
     });
 
   } catch (error) {
-    console.error(error);
+    console.error("Portfolio Error:", error);
 
-    res.status(500).json({
+    return res.status(500).json({
       error: "Failed to fetch portfolio"
     });
   }
