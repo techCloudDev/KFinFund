@@ -1,35 +1,39 @@
 const mongoose = require("mongoose");
 
 const notificationSchema = new mongoose.Schema(
-  {
-    userId: {
-      type: Number,
-      required: true
+    {
+        userId: {
+            type: Number,
+            required: true
+        },
+        email: {
+            type: String,
+            required: true
+        },
+        title: {
+            type: String,
+            required: true
+        },
+        message: {
+            type: String,
+            required: true
+        },
+        type: {
+            type: String,
+            enum: ["SIP", "PURCHASE", "ALERT","SYSTEM","KYC"],
+            default: "ALERT"
+        },
+        isRead: {
+            type: Boolean,
+            default: false
+        }
     },
-    title: {
-      type: String,
-      required: true
-    },
-    message: {
-      type: String,
-      required: true
-    },
-    type: {
-      type: String,
-      enum: ["SIP", "PURCHASE", "ALERT"],
-      default: "ALERT"
-    },
-    isRead: {
-      type: Boolean,
-      default: false
+    {
+        timestamps: true
     }
-  },
-  {
-    timestamps: true
-  }
 );
 
 module.exports = mongoose.model(
-  "Notification",
-  notificationSchema
+    "Notification",
+    notificationSchema
 );

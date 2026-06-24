@@ -1,5 +1,10 @@
 require("dotenv").config();
-
+console.log("EMAIL_USER:", process.env.EMAIL_USER);
+console.log(
+  process.env.EMAIL_PASS
+    ? "PASS FOUND"
+    : "PASS MISSING"
+);
 const express = require("express");
 const cors = require("cors");
 
