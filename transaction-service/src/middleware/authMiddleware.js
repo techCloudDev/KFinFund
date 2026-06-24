@@ -10,6 +10,12 @@ const authMiddleware = (req, res, next) => {
       });
     }
 
+    if (!authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({
+        error: "Invalid authorization format"
+      });
+    }
+
     const token = authHeader.split(" ")[1];
 
     const decoded = jwt.verify(
@@ -22,6 +28,8 @@ const authMiddleware = (req, res, next) => {
     next();
 
   } catch (error) {
+    console.error("JWT Verification Error:", error.message);
+
     return res.status(401).json({
       error: "Invalid token"
     });
