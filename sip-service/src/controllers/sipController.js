@@ -9,6 +9,8 @@ const {
 const createSipController = async (req, res) => {
   try {
 
+    console.log("Headers:", req.headers);
+    console.log("Body:", req.body);
     if (!req.user) {
       return res.status(401).json({
         success: false,
@@ -71,13 +73,6 @@ if (
       "Start date must be a future date"
   });
 }
-    {
-      return res.status(400).json({
-        success: false,
-        error: "All fields are required"
-      });
-    }
-
     const sip = await createSip(
       user_id,
       fund_name,
@@ -215,48 +210,48 @@ const updateSipController = async (
 
     if (
       !fund_name ||
-      !amount ||
+      amount === undefined ||
       !frequency ||
       !start_date
-    ) 
-    if (amount <= 0) {
-  return res.status(400).json({
-    success: false,
-    error: "Amount must be greater than 0"
-  });
-}
-
-const validFrequencies = [
-  "MONTHLY",
-  "QUARTERLY",
-  "YEARLY"
-];
-
-if (
-  !validFrequencies.includes(
-    frequency.toUpperCase()
-  )
-) {
-  return res.status(400).json({
-    success: false,
-    error:
-      "Frequency must be MONTHLY, QUARTERLY or YEARLY"
-  });
-}
-
-if (
-  new Date(start_date) <= new Date()
-) {
-  return res.status(400).json({
-    success: false,
-    error:
-      "Start date must be a future date"
-  });
-}
-    {
+    ) {
       return res.status(400).json({
         success: false,
         error: "All fields are required"
+      });
+    }
+
+    if (amount <= 0) {
+      return res.status(400).json({
+        success: false,
+        error: "Amount must be greater than 0"
+      });
+    }
+
+    const validFrequencies = [
+      "MONTHLY",
+      "QUARTERLY",
+      "YEARLY"
+    ];
+
+    if (
+      !validFrequencies.includes(
+        frequency.toUpperCase()
+      )
+    ) {
+      return res.status(400).json({
+        success: false,
+        error:
+          "Frequency must be MONTHLY, QUARTERLY or YEARLY"
+      });
+    }
+
+    if (
+      new Date(start_date) <= new Date()
+    ) {
+      return res.status(400).json({
+        success: false,
+        error:
+          "Start date must be a future date"
       });
     }
 
@@ -414,4 +409,3 @@ module.exports = {
   cancelSipController,
   getMySipsController
 };
-
