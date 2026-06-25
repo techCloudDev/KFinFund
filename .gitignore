@@ -143,7 +143,7 @@ vite.config.ts.timestamp-*
 .vite/
 
 # Ignore everything inside the uploads directory...
-kyc-service/uploads/**/*
+kyc-service/uploads/kyc_documents/*
 
 # ...but do NOT ignore the .gitkeep files themselves
 !kyc-service/uploads/**/.gitkeep
