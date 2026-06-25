@@ -1,12 +1,20 @@
 .kyc-container {
-  min-height: 100vh;
-  background: #f8f9ff;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+
+  color: #111827 !important;
+  background-color: #f8f9ff !important;
+
+  &, & h2, & p, & label, & input, & select {
+    color: #111827 !important;
+  }
 }
 
+.form-group input, 
+.form-group select,
+.form-group textarea {
+  background-color: #ffffff !important;
+  border: 1px solid #ddd !important;
+  color: #111827 !important;
+}
 .kyc-form {
   width: 470px;
   max-width: 470px;
