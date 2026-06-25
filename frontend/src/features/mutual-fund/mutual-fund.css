@@ -1001,3 +1001,62 @@
 .mf-success-close:hover {
   background-color: #E5E7EB;
 }
+
+.sip-calendar-container {
+  background-color: #FFFFFF;
+  border: 1px solid var(--mf-border-color);
+  border-radius: 12px;
+  padding: 16px;
+  margin-top: 8px;
+}
+
+.sip-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 12px 8px;
+  justify-items: center;
+  margin-bottom: 16px;
+}
+
+.sip-calendar-day {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: none;
+  background-color: transparent;
+  color: var(--mf-text-dark);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.sip-calendar-day:hover {
+  background-color: #F3F4F6;
+}
+
+.sip-calendar-day.selected {
+  background-color: #3C3D4A;
+  color: #FFFFFF;
+  font-weight: 700;
+}
+
+.sip-calendar-info {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--mf-text-muted);
+  border-top: 1px solid var(--mf-border-color);
+  padding-top: 12px;
+  margin-top: 8px;
+}
+
+.sip-info-icon {
+  color: var(--mf-text-muted);
+  flex-shrink: 0;
+}

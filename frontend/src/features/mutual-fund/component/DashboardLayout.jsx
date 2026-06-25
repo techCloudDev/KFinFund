@@ -7,17 +7,14 @@ export default function DashboardLayout({ children, pageTitle = "Dashboard" }) {
 
   const menuItems = [
     { name: "Dashboard", path: "/dashboard" },
-    { name: "Invest", path: "/invest" },
-    { name: "SIP", path: "/sip" },
+    { name: "SIP", path: "/user/sip" },
     { name: "Mutual Funds", path: "/mutual-fund" },
     { name: "Portfolio", path: "/portfolio" },
     { name: "Transactions", path: "/transactions" },
-    { name: "KYC", path: "/kyc" },
     { name: "Reports", path: "/reports" },
-    { name: "Watchlist", path: "/watchlist" },
-    { name: "Notifications", path: "/notifications" },
+    { name: "Watchlist", path: "/mutual-fund/watchlist" },
     { name: "Profile", path: "/profile" },
-    { name: "Support", path: "/support" },
+    { name: "Support", path: "/help" },
   ];
 
   return (
@@ -82,7 +79,6 @@ export default function DashboardLayout({ children, pageTitle = "Dashboard" }) {
               </svg>
               <span className="mf-header-bell-badge" />
             </div>
-
             {/* Profile Avatar and Name */}
             <div className="mf-header-profile">
               <Avatar style={{ width: "36px", height: "36px" }}>
