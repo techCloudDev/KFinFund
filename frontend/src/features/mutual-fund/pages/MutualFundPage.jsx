@@ -168,6 +168,44 @@ export function MutualFundPage() {
   const [loadingMore, setLoadingMore] = useState(false);
   const loaderRef = useRef(null);
 
+  // Watchlist features
+  const [watchlist, setWatchlist] = useState(() => {
+    try {
+      const stored = localStorage.getItem("watchlist");
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const isWatchlisted = (code) => {
+    return watchlist.some((item) => String(item.code) === String(code));
+  };
+
+  const toggleWatchlist = (fund) => {
+    let updated;
+    if (isWatchlisted(fund.code)) {
+      updated = watchlist.filter((item) => String(item.code) !== String(fund.code));
+    } else {
+      updated = [
+        ...watchlist,
+        {
+          code: fund.code,
+          name: fund.name,
+          fundHouse: fund.fundHouse || "",
+          category: fund.category || "Mutual Fund",
+          type: fund.type || "Open Ended",
+          logo: fund.logo,
+          risk: fund.risk,
+          currentNav: fund.currentNav || parseFloat(fund.return?.replace(/[^0-9.]/g, "")) || 100,
+          cagr3Y: fund.cagr3Y !== undefined ? fund.cagr3Y : 20
+        }
+      ];
+    }
+    setWatchlist(updated);
+    localStorage.setItem("watchlist", JSON.stringify(updated));
+  };
+
   // Helper to retrieve NAV from historical list closest to years ago
   const getNavYearsAgo = (navHistory, years) => {
     if (!navHistory || navHistory.length === 0) return null;
@@ -491,7 +529,53 @@ export function MutualFundPage() {
                   key={fund.id}
                   className="mf-fund-card"
                   onClick={() => navigate(`/mutual-fund/${fund.code}`)}
+                  style={{ position: "relative" }}
                 >
+                  {/* Bookmark Button */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleWatchlist({
+                        code: fund.code,
+                        name: fund.name,
+                        logo: fund.logo,
+                        risk: fund.categories.includes("Low") ? "Low" : fund.categories.includes("Mid") ? "Mid" : "High",
+                        currentNav: parseFloat(fund.return?.replace(/[^0-9.]/g, "")) || 120,
+                        cagr3Y: 20
+                      });
+                    }}
+                    style={{
+                      position: "absolute",
+                      top: "12px",
+                      right: "12px",
+                      background: "none",
+                      border: "none",
+                      cursor: "pointer",
+                      color: isWatchlisted(fund.code) ? "#EF4444" : "#9CA3AF",
+                      padding: "4px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      transition: "color 0.2s"
+                    }}
+                    title={isWatchlisted(fund.code) ? "Remove from Watchlist" : "Add to Watchlist"}
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill={isWatchlisted(fund.code) ? "currentColor" : "none"}
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+                    </svg>
+                  </button>
+
                   <div>
                     <div className="mf-card-header">
                       <img
@@ -500,7 +584,7 @@ export function MutualFundPage() {
                         className="mf-table-logo"
                         style={{ width: "42px", height: "42px" }}
                       />
-                      <h3 className="mf-card-fund-name">{fund.name}</h3>
+                      <h3 className="mf-card-fund-name" style={{ paddingRight: "20px" }}>{fund.name}</h3>
                     </div>
                   </div>
                   <div className="mf-card-footer">
@@ -614,6 +698,7 @@ export function MutualFundPage() {
                   <th>3Y CAGR</th>
                   <th>5Y CAGR</th>
                   <th>Risk Category</th>
+                  <th style={{ textAlign: "center" }}>Watchlist</th>
                 </tr>
               </thead>
               <tbody>
@@ -644,144 +729,218 @@ export function MutualFundPage() {
                         {fund.risk}
                       </span>
                     </td>
+                    <td style={{ textAlign: "center" }}>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleWatchlist(fund);
+                        }}
+                        style={{
+                          background: "none",
+                          border: "none",
+                          cursor: "pointer",
+                          color: isWatchlisted(fund.code) ? "#EF4444" : "#9CA3AF",
+                          padding: "4px",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          transition: "color 0.2s"
+                        }}
+                        title={isWatchlisted(fund.code) ? "Remove from Watchlist" : "Add to Watchlist"}
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          fill={isWatchlisted(fund.code) ? "currentColor" : "none"}
+                          stroke="currentColor"
+                          strokeWidth="2.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+                        </svg>
+                      </button>
+                    </td>
                   </tr>
                 ))}
-              </tbody>
-            </table>
+            </tbody>
+          </table>
 
-            {/* Infinite Scroll Loader Target */}
-            {loadedCount < POPULAR_30_SCHEMES.length && (
-              <div
-                ref={loaderRef}
-                style={{
-                  display: "flex",
-                  justifyContent: "center",
-                  padding: "20px",
-                  background: "#FAFBFD",
-                  borderTop: "1px solid var(--mf-border-color)"
-                }}
-              >
-                {loadingMore ? (
-                  <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                    <div className="mf-spinner" style={{ width: "20px", height: "20px", borderWidth: "2px", margin: 0 }} />
-                    <span style={{ fontSize: "14px", color: "var(--mf-text-muted)" }}>
-                      Loading more mutual funds...
-                    </span>
-                  </div>
-                ) : (
+          {/* Infinite Scroll Loader Target */}
+          {loadedCount < POPULAR_30_SCHEMES.length && (
+            <div
+              ref={loaderRef}
+              style={{
+                display: "flex",
+                justifyContent: "center",
+                padding: "20px",
+                background: "#FAFBFD",
+                borderTop: "1px solid var(--mf-border-color)"
+              }}
+            >
+              {loadingMore ? (
+                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                  <div className="mf-spinner" style={{ width: "20px", height: "20px", borderWidth: "2px", margin: 0 }} />
                   <span style={{ fontSize: "14px", color: "var(--mf-text-muted)" }}>
-                    Scroll down to load more
+                    Loading more mutual funds...
                   </span>
-                )}
-              </div>
-            )}
-          </div>
-        </>
-      )}
-
-      {/* VIEW: SEARCH RESULTS TABULAR VIEW */}
-      {!loading && viewMode === "search" && (
-        <>
-          <div className="mf-section-header">
-            <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-              <button type="button" className="mf-back-btn" onClick={handleReset}>
-                ← Clear Search
-              </button>
-              <h2 className="mf-section-title">Similar Schemes for &quot;{searchQuery}&quot;</h2>
-            </div>
-
-            {/* Sort Dropdown */}
-            {searchResults.length > 0 && (
-              <div className="mf-sort-wrapper">
-                <span className="mf-sort-label">Sort by:</span>
-                <select
-                  className="mf-sort-select"
-                  value={sortingCriteria}
-                  onChange={(e) => setSortingCriteria(e.target.value)}
-                >
-                  <option value="5year">5Y CAGR Return</option>
-                  <option value="3year">3Y CAGR Return</option>
-                  <option value="1year">1Y CAGR Return</option>
-                  <option value="risk">Risk Category</option>
-                </select>
-              </div>
-            )}
-          </div>
-
-          {searchResults.length > 0 ? (
-            <div className="mf-table-container">
-              <table className="mf-table">
-                <thead>
-                  <tr>
-                    <th>Scheme Name</th>
-                    <th>Latest NAV</th>
-                    <th>1Y CAGR</th>
-                    <th>3Y CAGR</th>
-                    <th>5Y CAGR</th>
-                    <th>Risk Category</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {getSortedFunds(searchResults).map((fund) => (
-                    <tr key={fund.code}>
-                      <td>
-                        <div
-                          className="mf-table-logo-box"
-                          onClick={() => navigate(`/mutual-fund/${fund.code}`)}
-                          style={{ cursor: "pointer" }}
-                        >
-                          <img src={fund.logo} alt={fund.name} className="mf-table-logo" />
-                          <span style={{ fontWeight: 600 }}>{fund.name}</span>
-                        </div>
-                      </td>
-                      <td>₹{fund.currentNav.toFixed(2)}</td>
-                      <td style={{ color: fund.cagr1Y >= 0 ? "#10B981" : "#EF4444" }}>
-                        {fund.cagr1Y !== null ? `${fund.cagr1Y}%` : "--"}
-                      </td>
-                      <td style={{ color: fund.cagr3Y >= 0 ? "#10B981" : "#EF4444" }}>
-                        {fund.cagr3Y !== null ? `${fund.cagr3Y}%` : "--"}
-                      </td>
-                      <td style={{ color: fund.cagr5Y >= 0 ? "#10B981" : "#EF4444" }}>
-                        {fund.cagr5Y !== null ? `${fund.cagr5Y}%` : "--"}
-                      </td>
-                      <td>
-                        <span className={`mf-badge mf-badge-${fund.risk.toLowerCase()}`}>
-                          {fund.risk}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div className="mf-empty-state">
-              <div className="mf-empty-icon">🔍</div>
-              <div className="mf-empty-title">No similar schemes found</div>
-              <div className="mf-empty-text">
-                We couldn&apos;t find any schemes on mfapi.in matching &quot;{searchQuery}&quot;.
-              </div>
-              <button
-                onClick={handleReset}
-                style={{
-                  marginTop: "16px",
-                  backgroundColor: "var(--mf-accent-purple)",
-                  color: "#FFFFFF",
-                  border: "none",
-                  borderRadius: "8px",
-                  padding: "8px 16px",
-                  fontSize: "14px",
-                  fontWeight: "600",
-                  cursor: "pointer",
-                }}
-              >
-                Reset Search
-              </button>
+                </div>
+              ) : (
+                <span style={{ fontSize: "14px", color: "var(--mf-text-muted)" }}>
+                  Scroll down to load more
+                </span>
+              )}
             </div>
           )}
-        </>
+        </div>
+    </>
+  )
+}
+
+{/* VIEW: SEARCH RESULTS TABULAR VIEW */ }
+{
+  !loading && viewMode === "search" && (
+    <>
+      <div className="mf-section-header">
+        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+          <button type="button" className="mf-back-btn" onClick={handleReset}>
+            ← Clear Search
+          </button>
+          <h2 className="mf-section-title">Similar Schemes for &quot;{searchQuery}&quot;</h2>
+        </div>
+
+        {/* Sort Dropdown */}
+        {searchResults.length > 0 && (
+          <div className="mf-sort-wrapper">
+            <span className="mf-sort-label">Sort by:</span>
+            <select
+              className="mf-sort-select"
+              value={sortingCriteria}
+              onChange={(e) => setSortingCriteria(e.target.value)}
+            >
+              <option value="5year">5Y CAGR Return</option>
+              <option value="3year">3Y CAGR Return</option>
+              <option value="1year">1Y CAGR Return</option>
+              <option value="risk">Risk Category</option>
+            </select>
+          </div>
+        )}
+      </div>
+
+      {searchResults.length > 0 ? (
+        <div className="mf-table-container">
+          <table className="mf-table">
+            <thead>
+              <tr>
+                <th>Scheme Name</th>
+                <th>Latest NAV</th>
+                <th>1Y CAGR</th>
+                <th>3Y CAGR</th>
+                <th>5Y CAGR</th>
+                <th>Risk Category</th>
+                <th style={{ textAlign: "center" }}>Watchlist</th>
+              </tr>
+            </thead>
+            <tbody>
+              {getSortedFunds(searchResults).map((fund) => (
+                <tr key={fund.code}>
+                  <td>
+                    <div
+                      className="mf-table-logo-box"
+                      onClick={() => navigate(`/mutual-fund/${fund.code}`)}
+                      style={{ cursor: "pointer" }}
+                    >
+                      <img src={fund.logo} alt={fund.name} className="mf-table-logo" />
+                      <span style={{ fontWeight: 600 }}>{fund.name}</span>
+                    </div>
+                  </td>
+                  <td>₹{fund.currentNav.toFixed(2)}</td>
+                  <td style={{ color: fund.cagr1Y >= 0 ? "#10B981" : "#EF4444" }}>
+                    {fund.cagr1Y !== null ? `${fund.cagr1Y}%` : "--"}
+                  </td>
+                  <td style={{ color: fund.cagr3Y >= 0 ? "#10B981" : "#EF4444" }}>
+                    {fund.cagr3Y !== null ? `${fund.cagr3Y}%` : "--"}
+                  </td>
+                  <td style={{ color: fund.cagr5Y >= 0 ? "#10B981" : "#EF4444" }}>
+                    {fund.cagr5Y !== null ? `${fund.cagr5Y}%` : "--"}
+                  </td>
+                  <td>
+                    <span className={`mf-badge mf-badge-${fund.risk.toLowerCase()}`}>
+                      {fund.risk}
+                    </span>
+                  </td>
+                  <td style={{ textAlign: "center" }}>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleWatchlist(fund);
+                      }}
+                      style={{
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        color: isWatchlisted(fund.code) ? "#EF4444" : "#9CA3AF",
+                        padding: "4px",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        transition: "color 0.2s"
+                      }}
+                      title={isWatchlisted(fund.code) ? "Remove from Watchlist" : "Add to Watchlist"}
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill={isWatchlisted(fund.code) ? "currentColor" : "none"}
+                        stroke="currentColor"
+                        strokeWidth="2.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+                      </svg>
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="mf-empty-state">
+          <div className="mf-empty-icon">🔍</div>
+          <div className="mf-empty-title">No similar schemes found</div>
+          <div className="mf-empty-text">
+            We couldn&apos;t find any schemes on mfapi.in matching &quot;{searchQuery}&quot;.
+          </div>
+          <button
+            onClick={handleReset}
+            style={{
+              marginTop: "16px",
+              backgroundColor: "var(--mf-accent-purple)",
+              color: "#FFFFFF",
+              border: "none",
+              borderRadius: "8px",
+              padding: "8px 16px",
+              fontSize: "14px",
+              fontWeight: "600",
+              cursor: "pointer",
+            }}
+          >
+            Reset Search
+          </button>
+        </div>
       )}
-    </DashboardLayout>
+    </>
+  )
+}
+    </DashboardLayout >
   );
 }
 

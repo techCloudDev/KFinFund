@@ -51,6 +51,113 @@ export function MutualFundDetailPage() {
   const [investSuccess, setInvestSuccess] = useState(false);
   const [transactionId, setTransactionId] = useState("");
 
+  // Determine next month's days count and name dynamically from system date
+  const { daysInNextMonth, nextMonthName, nextMonthYear, nextMonthIndex } = useMemo(() => {
+    const today = new Date();
+    const nextMonthDate = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+    const year = nextMonthDate.getFullYear();
+    const monthIdx = nextMonthDate.getMonth(); // 0-11
+    
+    // Check days in next month (with special rule for February)
+    let daysCount = 30;
+    if (monthIdx === 1) {
+      // February: 28 days
+      daysCount = 28;
+    } else {
+      const month31Days = [0, 2, 4, 6, 7, 9, 11]; // Jan, Mar, May, Jul, Aug, Oct, Dec
+      if (month31Days.includes(monthIdx)) {
+        daysCount = 31;
+      }
+    }
+
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const name = months[monthIdx];
+
+    return {
+      daysInNextMonth: daysCount,
+      nextMonthName: name,
+      nextMonthYear: year,
+      nextMonthIndex: monthIdx
+    };
+  }, []);
+
+  // Default selected day is the system date's day, capped at the max days of the next month
+  const [selectedSipDay, setSelectedSipDay] = useState(() => {
+    const todayDay = new Date().getDate();
+    const today = new Date();
+    const nextMonthDate = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+    const monthIdx = nextMonthDate.getMonth();
+    let daysCount = 30;
+    if (monthIdx === 1) {
+      daysCount = 28;
+    } else {
+      const month31Days = [0, 2, 4, 6, 7, 9, 11];
+      if (month31Days.includes(monthIdx)) {
+        daysCount = 31;
+      }
+    }
+    return Math.min(todayDay, daysCount);
+  });
+
+  // Derived sipDate string for submission/API tracking (ensuring 4-digit YYYY format)
+  const sipDate = useMemo(() => {
+    const mm = String(nextMonthIndex + 1).padStart(2, '0');
+    const dd = String(selectedSipDay).padStart(2, '0');
+    return `${nextMonthYear}-${mm}-${dd}`;
+  }, [selectedSipDay, nextMonthIndex, nextMonthYear]);
+
+  // Days array to render calendar grid
+  const daysArray = useMemo(() => {
+    const days = [];
+    for (let i = 1; i <= daysInNextMonth; i++) {
+      days.push(i);
+    }
+    return days;
+  }, [daysInNextMonth]);
+
+  // Formatted date string for success rendering in local/independent format
+  const formattedInstallmentDate = useMemo(() => {
+    return `${String(selectedSipDay).padStart(2, '0')} ${nextMonthName} ${nextMonthYear}`;
+  }, [selectedSipDay, nextMonthName, nextMonthYear]);
+
+  // Watchlist functionality
+  const [watchlist, setWatchlist] = useState(() => {
+    try {
+      const stored = localStorage.getItem("watchlist");
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const isWatchlisted = useMemo(() => {
+    return watchlist.some(item => String(item.code) === String(schemeCode));
+  }, [watchlist, schemeCode]);
+
+  const toggleWatchlist = () => {
+    let updated;
+    if (isWatchlisted) {
+      updated = watchlist.filter(item => String(item.code) !== String(schemeCode));
+    } else {
+      updated = [
+        ...watchlist,
+        {
+          code: fundData.code,
+          name: fundData.name,
+          fundHouse: fundData.fundHouse,
+          category: fundData.category,
+          type: fundData.type,
+          logo: fundData.logo,
+          risk: fundData.risk,
+          currentNav: fundData.currentNav,
+          cagr3Y: fundData.cagr3Y
+        }
+      ];
+    }
+    setWatchlist(updated);
+    localStorage.setItem("watchlist", JSON.stringify(updated));
+  };
+
   // Helper to retrieve NAV from historical list closest to years ago
   const getNavYearsAgo = (navHistory, years) => {
     if (!navHistory || navHistory.length === 0) return null;
@@ -266,6 +373,14 @@ export function MutualFundDetailPage() {
       alert(`Please enter a valid investment amount (Minimum is ₹${minAmount})`);
       return;
     }
+    if (investMode === "sip") {
+      const parts = sipDate.split("-");
+      const year = parts[0];
+      if (!/^\d{4}$/.test(year)) {
+        alert("Please select a date with a valid 4-digit year format (YYYY).");
+        return;
+      }
+    }
     const tid = "KFF-" + Math.floor(10000000 + Math.random() * 90000000);
     setTransactionId(tid);
     setInvestSuccess(true);
@@ -320,29 +435,69 @@ export function MutualFundDetailPage() {
           <div>
             {/* Fund Header Card */}
             <div className="mf-detail-card" style={{ marginBottom: "24px" }}>
-              <div className="mf-detail-header-card">
-                <img
-                  src={fundData.logo}
-                  alt={fundData.fundHouse}
-                  className="mf-detail-logo"
-                />
-                <div className="mf-detail-title-box">
-                  <h2 className="mf-detail-scheme-name">{fundData.name}</h2>
-                  <div className="mf-detail-badge-row">
-                    <span className={`mf-badge mf-badge-${fundData.risk.toLowerCase()}`}>
-                      {fundData.risk} Risk
-                    </span>
-                    <span
-                      style={{
-                        fontSize: "13px",
-                        color: "var(--mf-text-muted)",
-                        fontWeight: 600,
-                      }}
-                    >
-                      {fundData.type} • {fundData.category}
-                    </span>
+              <div className="mf-detail-header-card" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", width: "100%" }}>
+                <div style={{ display: "flex", gap: "16px" }}>
+                  <img
+                    src={fundData.logo}
+                    alt={fundData.fundHouse}
+                    className="mf-detail-logo"
+                  />
+                  <div className="mf-detail-title-box">
+                    <h2 className="mf-detail-scheme-name">{fundData.name}</h2>
+                    <div className="mf-detail-badge-row">
+                      <span className={`mf-badge mf-badge-${fundData.risk.toLowerCase()}`}>
+                        {fundData.risk} Risk
+                      </span>
+                      <span
+                        style={{
+                          fontSize: "13px",
+                          color: "var(--mf-text-muted)",
+                          fontWeight: 600,
+                        }}
+                      >
+                        {fundData.type} • {fundData.category}
+                      </span>
+                    </div>
                   </div>
                 </div>
+
+                {/* Watchlist toggle button */}
+                <button
+                  type="button"
+                  onClick={toggleWatchlist}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    backgroundColor: isWatchlisted ? "rgba(239, 68, 68, 0.08)" : "transparent",
+                    color: isWatchlisted ? "#EF4444" : "var(--mf-text-muted)",
+                    border: "1.5px solid",
+                    borderColor: isWatchlisted ? "#EF4444" : "var(--mf-border-color)",
+                    borderRadius: "20px",
+                    padding: "6px 14px",
+                    fontSize: "13px",
+                    fontWeight: "600",
+                    cursor: "pointer",
+                    transition: "all 0.2s ease",
+                    whiteSpace: "nowrap",
+                    alignSelf: "center"
+                  }}
+                >
+                  <svg 
+                    xmlns="http://www.w3.org/2000/svg" 
+                    width="14" 
+                    height="14" 
+                    viewBox="0 0 24 24" 
+                    fill={isWatchlisted ? "currentColor" : "none"} 
+                    stroke="currentColor" 
+                    strokeWidth="2.5" 
+                    strokeLinecap="round" 
+                    strokeLinejoin="round"
+                  >
+                    <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+                  </svg>
+                  <span>{isWatchlisted ? "Watchlisted" : "Watchlist"}</span>
+                </button>
               </div>
 
               {/* NAV values metrics */}
@@ -531,6 +686,49 @@ export function MutualFundDetailPage() {
                   )}
                 </div>
 
+                {/* Calendar Input for SIP */}
+                {investMode === "sip" && (
+                  <div className="mf-invest-input-wrapper">
+                    <label className="mf-invest-label" style={{ textTransform: "lowercase" }}>sip installment date</label>
+                    <div className="sip-calendar-container">
+                      <div className="sip-calendar-grid">
+                        {daysArray.map((day) => {
+                          const isSelected = day === selectedSipDay;
+                          return (
+                            <button
+                              key={day}
+                              type="button"
+                              className={`sip-calendar-day ${isSelected ? "selected" : ""}`}
+                              onClick={() => setSelectedSipDay(day)}
+                            >
+                              {day}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <div className="sip-calendar-info">
+                        <span>Next SIP instalment on {String(selectedSipDay).padStart(2, '0')} of {nextMonthName}</span>
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="14"
+                          height="14"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          className="sip-info-icon"
+                        >
+                          <circle cx="12" cy="12" r="10"></circle>
+                          <line x1="12" y1="16" x2="12" y2="12"></line>
+                          <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                        </svg>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <button
                   type="submit"
                   className="mf-invest-btn"
@@ -563,8 +761,13 @@ export function MutualFundDetailPage() {
                   }}
                 >
                   <div><strong>Transaction ID:</strong> {transactionId}</div>
+                  {investMode === "sip" && (
+                    <div style={{ marginTop: "4px" }}>
+                      <strong>Installment Day:</strong> {formattedInstallmentDate}
+                    </div>
+                  )}
                   <div style={{ marginTop: "4px" }}>
-                    <strong>Date:</strong> {new Date().toLocaleDateString("en-IN", {
+                    <strong>Order Date:</strong> {new Date().toLocaleDateString("en-IN", {
                       day: "2-digit",
                       month: "short",
                       year: "numeric",

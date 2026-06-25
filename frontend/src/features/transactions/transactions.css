@@ -1,0 +1,224 @@
+/* Transactions Styling */
+
+.tx-container {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 8px;
+}
+
+.tx-header {
+  margin-bottom: 24px;
+}
+
+.tx-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--mf-text-dark);
+  margin: 0 0 6px 0;
+}
+
+.tx-subtitle {
+  font-size: 14px;
+  color: var(--mf-text-muted);
+  margin: 0;
+}
+
+/* Tabs list */
+.tx-tabs-container {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 28px;
+  border-bottom: 1px solid var(--mf-border-color);
+  padding-bottom: 12px;
+}
+
+.tx-tab-btn {
+  background-color: transparent;
+  border: 1px solid var(--mf-border-color);
+  border-radius: 20px;
+  padding: 8px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--mf-text-muted);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.tx-tab-btn:hover {
+  background-color: #F3F4F6;
+  color: var(--mf-text-dark);
+}
+
+.tx-tab-btn.active {
+  background-color: var(--mf-accent-purple);
+  color: #FFFFFF;
+  border-color: var(--mf-accent-purple);
+}
+
+/* Date grouping */
+.tx-date-group {
+  margin-bottom: 32px;
+}
+
+.tx-date-header {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--mf-text-muted);
+  margin-bottom: 12px;
+  padding-left: 8px;
+}
+
+/* Transaction Card Item */
+.tx-card {
+  background-color: #FFFFFF;
+  border: 1px solid var(--mf-border-color);
+  border-radius: 14px;
+  padding: 16px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  transition: all 0.2s ease;
+  box-shadow: var(--mf-card-shadow);
+}
+
+.tx-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.04);
+}
+
+.tx-left-section {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.tx-icon-box {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+}
+
+.tx-icon-box.buy-sip {
+  background-color: rgba(16, 185, 129, 0.1);
+  color: #10B981;
+}
+
+.tx-icon-box.buy-lumpsum {
+  background-color: rgba(59, 130, 246, 0.1);
+  color: #3B82F6;
+}
+
+.tx-icon-box.sell {
+  background-color: rgba(245, 158, 11, 0.1);
+  color: #F59E0B;
+}
+
+.tx-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tx-fund-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--mf-text-dark);
+}
+
+.tx-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tx-type-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 12px;
+  text-transform: uppercase;
+}
+
+.tx-type-badge.buy {
+  background-color: #ECFDF5;
+  color: #065F46;
+}
+
+.tx-type-badge.sell {
+  background-color: #FEF3C7;
+  color: #92400E;
+}
+
+.tx-subtype-text {
+  font-size: 12px;
+  color: var(--mf-text-muted);
+  fontWeight: 500;
+}
+
+.tx-right-section {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.tx-amount-col {
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tx-amount {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--mf-text-dark);
+}
+
+.tx-amount.buy {
+  color: #10B981;
+}
+
+.tx-amount.sell {
+  color: #F59E0B;
+}
+
+.tx-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.tx-status-badge.completed {
+  color: var(--mf-text-muted);
+}
+
+.tx-status-badge.failed {
+  color: #EF4444;
+}
+
+.tx-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.tx-dot.completed {
+  background-color: #10B981;
+}
+
+.tx-dot.failed {
+  background-color: #EF4444;
+}
+
+.tx-arrow {
+  color: var(--mf-text-muted);
+  display: flex;
+  align-items: center;
+}
