@@ -12,6 +12,11 @@ export const LandingPage = () => {
   const [scrollY, setScrollY] = useState(0);
   const [mouse, setMouse] = useState({ x: 0.5, y: 0.5 });
 
+   // Scroll to top when page loads
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
   useEffect(() => {
     const onScroll = () => setScrollY(window.scrollY);
     const onMouse = (e) =>
