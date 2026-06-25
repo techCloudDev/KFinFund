@@ -62,6 +62,9 @@ function Register() {
       <div className="auth-card">
         {step <= 4 && (
           <>
+            <div className="login-logo-box">
+              <img src="/logo.png" alt="KFinFund Logo" className="login-logo" />
+            </div>
             <div className="step-line">
               {[1, 2, 3, 4].map((num) => (
                 <div
