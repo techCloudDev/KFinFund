@@ -1,0 +1,127 @@
+.kyc-container {
+  min-height: 100vh;
+  background: #f8f9ff;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.kyc-form {
+  width: 470px;
+  max-width: 470px;
+  background: white;
+  padding: 36px;
+  border-radius: 18px;
+  border: 1px solid #eee;
+  box-shadow: 0 12px 35px rgba(0, 0, 0, 0.08);
+  box-sizing: border-box;
+}
+
+.kyc-form h2 {
+  text-align: center;
+  font-size: 26px;
+  color: #111827;
+  margin-bottom: 6px;
+  font-weight: 700;
+}
+
+.kyc-form .subtitle {
+  text-align: center;
+  color: #6b7280;
+  font-size: 15px;
+  margin-bottom: 28px;
+  line-height: 1.5;
+}
+
+.form-group {
+  margin-bottom: 20px;
+  display: flex;
+  flex-direction: column;
+}
+
+.form-group label {
+  display: block;
+  text-align: left;
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: #111827;
+}
+
+.form-group input {
+  width: 100%;
+  height: 52px;
+  padding: 0 14px;
+  border-radius: 10px;
+  border: 1px solid #ddd;
+  font-size: 15px;
+  outline: none;
+  background: white;
+  box-sizing: border-box;
+  transition: border-color 0.2s ease;
+}
+
+.form-group textarea {
+  width: 100%;
+  padding: 14px;
+  border-radius: 10px;
+  border: 1px solid #ddd;
+  font-size: 15px;
+  outline: none;
+  background: white;
+  box-sizing: border-box;
+  transition: border-color 0.2s ease;
+  font-family: inherit;
+  resize: vertical;
+}
+
+.form-group input:focus,
+.form-group textarea:focus {
+  border-color: #5521d9;
+}
+
+.kyc-btn {
+  width: 100%;
+  height: 48px;
+  background: #5521d9;
+  color: white;
+  border: none;
+  border-radius: 9px;
+  font-weight: 700;
+  font-size: 15px;
+  cursor: pointer;
+  margin-top: 10px;
+  transition: background-color 0.2s ease;
+}
+
+.kyc-btn:hover {
+  background: #4517bd;
+}
+
+.kyc-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: #5521d9;
+}
+
+.alert {
+  padding: 14px;
+  border-radius: 10px;
+  font-size: 14px;
+  margin-bottom: 20px;
+  line-height: 1.5;
+  font-weight: 500;
+}
+
+.alert.success {
+  background-color: #f0fdf4;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+}
+
+.alert.error {
+  background-color: #fef2f2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
