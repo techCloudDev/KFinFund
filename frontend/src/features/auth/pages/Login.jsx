@@ -8,24 +8,46 @@ function Login() {
   const [password, setPassword] = useState("");
   const [captcha, setCaptcha] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
+    setError("");
+
     if (!email) {
-      alert("Please enter your email");
+      setError("Please enter your email");
       return;
     }
-
     if (!password) {
-      alert("Please enter your password");
+      setError("Please enter your password");
       return;
     }
-
     if (!captcha) {
-      alert("Please verify that you are not a robot");
+      setError("Please verify that you are not a robot");
       return;
     }
 
-    alert("Backend login will be connected here.");
+    setLoading(true);
+    try {
+      const response = await fetch("http://localhost:3001/api/users/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        localStorage.setItem("token", data.token);
+        window.location.href = "/dashboard";
+      } else {
+        setError(data.error || "Login failed. Please try again.");
+      }
+    } catch (err) {
+      setError("Something went wrong. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -36,7 +58,6 @@ function Login() {
         </div>
 
         <h2 className="login-title">Welcome Back!</h2>
-
         <p className="login-subtitle">
           Login to continue your investment journey
         </p>
@@ -53,7 +74,6 @@ function Login() {
 
         <div className="form-group">
           <label>Password</label>
-
           <div className="password-wrapper">
             <input
               type={showPassword ? "text" : "password"}
@@ -61,7 +81,6 @@ function Login() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
-
             <span
               className="eye-icon"
               onClick={() => setShowPassword(!showPassword)}
@@ -71,7 +90,9 @@ function Login() {
           </div>
         </div>
 
-        <div className="forgot-password">Forgot Password?</div>
+        <Link to="/forgot-password" className="forgot-password">
+          Forgot Password?
+        </Link>
 
         <div className="captcha-box">
           <input
@@ -79,15 +100,25 @@ function Login() {
             checked={captcha}
             onChange={(e) => setCaptcha(e.target.checked)}
           />
-          <span>I'm not a robot</span>
+          <span>I&apos;m not a robot</span>
         </div>
 
-        <button className="login-btn" onClick={handleLogin}>
-          Login
+        {error && (
+          <p className="error-text" style={{ color: "red", fontSize: "13px", marginBottom: "10px" }}>
+            {error}
+          </p>
+        )}
+
+        <button
+          className="login-btn"
+          onClick={handleLogin}
+          disabled={loading}
+        >
+          {loading ? "Logging in..." : "Login"}
         </button>
 
         <div className="login-bottom-text">
-          Don&apos;t have an account? <Link to="/">Register</Link>
+          Don&apos;t have an account? <Link to="/register">Register</Link>
         </div>
       </div>
     </div>
