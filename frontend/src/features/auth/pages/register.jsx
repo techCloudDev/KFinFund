@@ -5,8 +5,11 @@ import StepOTP from "../component/StepOTP";
 import StepTerms from "../component/StepTerms";
 import Success from "../component/Success";
 import "../auth.css";
+
 function Register() {
   const [step, setStep] = useState(1);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     fullName: "",
     email: "",
@@ -23,6 +26,35 @@ function Register() {
 
   const updateData = (newData) => {
     setFormData({ ...formData, ...newData });
+  };
+
+  const handleSubmit = async () => {
+    setError("");
+    setLoading(true);
+    try {
+      const response = await fetch("http://localhost:3001/api/users/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          full_name: formData.fullName,
+          email: formData.email,
+          password: formData.password,
+          phone: formData.phone,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setStep(5);
+      } else {
+        setError(data.error || "Registration failed. Please try again.");
+      }
+    } catch (err) {
+      setError("Something went wrong. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -42,7 +74,6 @@ function Register() {
                 </div>
               ))}
             </div>
-
             <h2 className="auth-title">
               {step === 3
                 ? "Verify Your Phone"
@@ -53,6 +84,12 @@ function Register() {
           </>
         )}
 
+        {error && (
+          <p style={{ color: "red", fontSize: "13px", marginBottom: "10px" }}>
+            {error}
+          </p>
+        )}
+
         {step === 1 && (
           <StepPersonal
             formData={formData}
@@ -60,7 +97,6 @@ function Register() {
             nextStep={() => setStep(2)}
           />
         )}
-
         {step === 2 && (
           <StepPassword
             formData={formData}
@@ -69,7 +105,6 @@ function Register() {
             prevStep={() => setStep(1)}
           />
         )}
-
         {step === 3 && (
           <StepOTP
             formData={formData}
@@ -78,16 +113,15 @@ function Register() {
             prevStep={() => setStep(2)}
           />
         )}
-
         {step === 4 && (
           <StepTerms
             formData={formData}
             updateData={updateData}
-            nextStep={() => setStep(5)}
+            nextStep={handleSubmit}
             prevStep={() => setStep(3)}
+            loading={loading}
           />
         )}
-
         {step === 5 && <Success />}
       </div>
     </div>
