@@ -1,9 +1,6 @@
 const express = require("express");
-const verifyToken =
-  require("../middleware/authMiddleware");
-
 const router = express.Router();
-
+const verifyToken = require("../middleware/authMiddleware");
 const {
   createSipController,
   getAllSipsController,
@@ -13,37 +10,22 @@ const {
   getMySipsController
 } = require("../controllers/sipController");
 
-router.post(
-  "/",
-  verifyToken,
-  createSipController
-);
+// Create SIP
+router.post("/", verifyToken, createSipController);
 
-router.get("/", getAllSipsController);
+// Get All SIPs (Admin only)
+router.get("/", verifyToken, getAllSipsController);
 
-router.get(
-  "/my-sips",
-  verifyToken,
-  getMySipsController
-);
+// Get My SIPs
+router.get("/my-sips", verifyToken, getMySipsController);
 
-router.patch(
-  "/:id/cancel",
-  verifyToken,
-  cancelSipController
-);
+// Cancel SIP
+router.patch("/:id/cancel", verifyToken, cancelSipController);
 
-router.get(
-  "/:id",
-  verifyToken,
-  getSipByIdController
-);
+// Get SIP by ID
+router.get("/:id", verifyToken, getSipByIdController);
 
-router.put(
-  "/:id",
-  verifyToken,
-  updateSipController
-);
+// Update SIP
+router.put("/:id", verifyToken, updateSipController);
 
 module.exports = router;
-
