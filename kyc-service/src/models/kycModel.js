@@ -8,6 +8,11 @@ const kycSchema = new mongoose.Schema(
       unique: true,
       index: true
     },
+    full_name: {
+      type: String,
+      required: true,
+      trim: true
+    },
     pan_number: {
       type: String,
       required: true,
@@ -22,6 +27,36 @@ const kycSchema = new mongoose.Schema(
     address: {
       type: String,
       required: true
+    },
+    documents: {
+      selfie_url: {
+        type: String,
+        required: true
+      },
+      signature_url: {
+        type: String,
+        required: true
+      }
+    },
+    financials: {
+      bank_account_number: {
+        type: String,
+        required: true
+      },
+      ifsc_code: {
+        type: String,
+        required: true,
+        uppercase: true
+      },
+      income_bracket: {
+        type: String,
+        enum: ["NOT_DECLARED", "BELOW_1L", "1L_5L", "5L_10L", "ABOVE_10L"],
+        default: "NOT_DECLARED"
+      },
+      pep_status: {
+        type: Boolean,
+        default: false
+      }
     },
     status: {
       type: String,
