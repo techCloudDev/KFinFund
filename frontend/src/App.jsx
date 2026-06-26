@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { LandingPage } from './features/landing/pages/Landpage';
 import Register from './features/auth/pages/register';
 import Login from './features/auth/pages/Login';
+import Dashboard from "./features/dashboard/Dashboard";
 import MutualFundPage from './features/mutual-fund/pages/MutualFundPage';
 import MutualFundDetailPage from './features/mutual-fund/pages/MutualFundDetailPage';
 import './App.css';
@@ -14,6 +15,8 @@ function App() {
           <Route path="/" element={<LandingPage />} />
           <Route path="/register" element={<Register />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/profile" element={<div>Profile Page Coming Soon</div>} />
           <Route path="/mutual-fund" element={<MutualFundPage />} />
           <Route path="/mutual-fund/:schemeCode" element={<MutualFundDetailPage />} />
         </Routes>
