@@ -5,7 +5,7 @@ metadata:
   labels:
     app: transaction-service
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: transaction-service
@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: transaction-service
-          image: transaction-service:latest
+          image: 325779841724.dkr.ecr.ap-south-1.amazonaws.com/kfinfund-transaction-service:latest
           ports:
             - containerPort: 3003
           env:

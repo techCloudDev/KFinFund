@@ -5,7 +5,7 @@ metadata:
   labels:
     app: sip-service
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: sip-service
@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: sip-service
-          image: sip-service:latest
+          image: 325779841724.dkr.ecr.ap-south-1.amazonaws.com/kfinfund-sip-service:latest
           ports:
             - containerPort: 3004
           env:

@@ -5,7 +5,7 @@ metadata:
   labels:
     app: notification-service
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: notification-service
@@ -16,14 +16,14 @@ spec:
     spec:
       containers:
         - name: notification-service
-          image: notification-service:latest
+          image: 325779841724.dkr.ecr.ap-south-1.amazonaws.com/kfinfund-notification-service:latest
           ports:
             - containerPort: 3005
           env:
             - name: MONGO_URI
               value: "mongodb://mongodb-service:27017/kfinfund_notifications"
             - name: RESEND_API_KEY
-              value: re_Go6EDnV9_EFSQBUBEJ3y2S8RFwu18N7CU
+              value: "your_new_resend_api_key_here"
             - name: JWT_SECRET
               value: "kfinfund_secret_key_2026"
             - name: PORT

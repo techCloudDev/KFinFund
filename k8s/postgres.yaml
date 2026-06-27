@@ -26,6 +26,8 @@ spec:
               value: "postgres123"
             - name: POSTGRES_DB
               value: "postgres"
+            - name: POSTGRES_MULTIPLE_DATABASES
+              value: "kfinfund_users,kfinfund_transactions,kfinfund_sips"
           volumeMounts:
             - name: postgres-storage
               mountPath: /var/lib/postgresql/data

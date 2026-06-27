@@ -6,6 +6,8 @@ import StepTerms from "../component/StepTerms";
 import Success from "../component/Success";
 import "../auth.css";
 
+const USER_SERVICE_URL = import.meta.env.VITE_USER_API || "http://localhost:4001";
+
 function Register() {
   const [step, setStep] = useState(1);
   const [error, setError] = useState("");
@@ -32,7 +34,7 @@ function Register() {
     setError("");
     setLoading(true);
     try {
-      const response = await fetch("http://localhost:4001/api/users/register", {
+      const response = await fetch(`${USER_SERVICE_URL}/api/users/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

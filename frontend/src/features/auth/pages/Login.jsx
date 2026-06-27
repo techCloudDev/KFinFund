@@ -3,6 +3,8 @@ import { Link } from "react-router-dom";
 import { FaEye, FaEyeSlash } from "react-icons/fa";
 import "../auth.css";
 
+const USER_SERVICE_URL = import.meta.env.VITE_USER_API || "http://localhost:4001";
+
 function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -29,7 +31,7 @@ function Login() {
 
     setLoading(true);
     try {
-      const response = await fetch("http://localhost:4001/api/users/login", {
+      const response = await fetch(`${USER_SERVICE_URL}/api/users/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),

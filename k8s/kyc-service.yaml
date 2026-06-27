@@ -5,7 +5,7 @@ metadata:
   labels:
     app: kyc-service
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: kyc-service
@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: kyc-service
-          image: kyc-service:latest
+          image: 325779841724.dkr.ecr.ap-south-1.amazonaws.com/kfinfund-kyc-service:latest
           ports:
             - containerPort: 3002
           env:
