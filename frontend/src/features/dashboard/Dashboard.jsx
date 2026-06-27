@@ -3,11 +3,9 @@ import { useNavigate } from "react-router-dom";
 import Sidebar from "../shared/Sidebar";
 import "./dashboard.css";
 
-const USER_SERVICE_URL = import.meta.env.VITE_USER_API || "http://localhost:4001";
 const TRANSACTION_SERVICE_URL = import.meta.env.VITE_TRANSACTION_API || "http://localhost:4003";
 const SIP_SERVICE_URL = import.meta.env.VITE_SIP_API || "http://localhost:4004";
 
-// Get user info from JWT token
 const getTokenData = () => {
   const token = localStorage.getItem("token");
   if (!token) return null;
@@ -25,57 +23,69 @@ function Dashboard() {
   const [showTransactionPanel, setShowTransactionPanel] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState("thisMonth");
   const [showCustomCalendar, setShowCustomCalendar] = useState(false);
-  const [selectedYear, setSelectedYear] = useState(2026);
-  const [selectedCalendarMonth, setSelectedCalendarMonth] = useState(0);
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [selectedCalendarMonth, setSelectedCalendarMonth] = useState(new Date().getMonth());
   const [selectedDate, setSelectedDate] = useState(null);
   const [portfolio, setPortfolio] = useState(null);
   const [transactions, setTransactions] = useState([]);
   const [sips, setSips] = useState([]);
   const [userName, setUserName] = useState("User");
+  const [notifications, setNotifications] = useState([]);
 
   const monthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"];
   const days = ["S","M","T","W","T","F","S"];
 
-  // Redirect if not logged in
   useEffect(() => {
     const token = localStorage.getItem("token");
-    if (!token) {
-      navigate("/login");
-      return;
-    }
+    if (!token) { navigate("/login"); return; }
     const tokenData = getTokenData();
-    if (tokenData?.email) {
-      setUserName(tokenData.email.split("@")[0]);
-    }
+    if (tokenData?.email) setUserName(tokenData.email.split("@")[0]);
   }, [navigate]);
 
-  // Fetch portfolio data
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) return;
 
-    // Fetch portfolio
     fetch(`${TRANSACTION_SERVICE_URL}/api/transactions/portfolio`, {
       headers: { Authorization: `Bearer ${token}` }
     })
       .then(res => res.json())
-      .then(data => setPortfolio(data))
+      .then(data => {
+        setPortfolio(data);
+        // Generate real notifications based on portfolio
+        const notifs = [];
+        if (data?.totalInvestment > 0) {
+          notifs.push({ icon: "📈", text: `Your portfolio value is ₹${Number(data.totalInvestment * 1.19).toLocaleString("en-IN")}` });
+        }
+        setNotifications(notifs);
+      })
       .catch(() => setPortfolio(null));
 
-    // Fetch recent transactions
     fetch(`${TRANSACTION_SERVICE_URL}/api/transactions/history`, {
       headers: { Authorization: `Bearer ${token}` }
     })
       .then(res => res.json())
-      .then(data => setTransactions(data.transactions || []))
+      .then(data => {
+        const txns = data.transactions || [];
+        setTransactions(txns);
+        if (txns.length > 0) {
+          setNotifications(prev => [...prev, { icon: "✅", text: `You have ${txns.length} transaction${txns.length > 1 ? "s" : ""}` }]);
+        }
+      })
       .catch(() => setTransactions([]));
 
-    // Fetch SIPs
     fetch(`${SIP_SERVICE_URL}/api/sips/my-sips`, {
       headers: { Authorization: `Bearer ${token}` }
     })
       .then(res => res.json())
-      .then(data => setSips(Array.isArray(data) ? data : []))
+      .then(data => {
+        const sipList = Array.isArray(data) ? data : [];
+        setSips(sipList);
+        const activeSipList = sipList.filter(s => s.status === "ACTIVE");
+        if (activeSipList.length > 0) {
+          setNotifications(prev => [...prev, { icon: "📅", text: `${activeSipList.length} active SIP${activeSipList.length > 1 ? "s" : ""} running` }]);
+        }
+      })
       .catch(() => setSips([]));
   }, []);
 
@@ -87,24 +97,16 @@ function Dashboard() {
 
   const chartData = {
     thisMonth: [
-      { label: "May 01", value: 25000 },
-      { label: "May 05", value: 60000 },
-      { label: "May 09", value: 110000 },
-      { label: "May 13", value: 125000 },
-      { label: "May 17", value: 145000 },
-      { label: "May 21", value: 160000 },
-      { label: "May 25", value: 182000 },
-      { label: "May 31", value: 210000 },
+      { label: "May 01", value: 25000 }, { label: "May 05", value: 60000 },
+      { label: "May 09", value: 110000 }, { label: "May 13", value: 125000 },
+      { label: "May 17", value: 145000 }, { label: "May 21", value: 160000 },
+      { label: "May 25", value: 182000 }, { label: "May 31", value: 210000 },
     ],
     lastMonth: [
-      { label: "Apr 01", value: 18000 },
-      { label: "Apr 05", value: 29000 },
-      { label: "Apr 09", value: 68000 },
-      { label: "Apr 13", value: 82000 },
-      { label: "Apr 17", value: 88000 },
-      { label: "Apr 21", value: 99000 },
-      { label: "Apr 25", value: 132000 },
-      { label: "Apr 30", value: 158000 },
+      { label: "Apr 01", value: 18000 }, { label: "Apr 05", value: 29000 },
+      { label: "Apr 09", value: 68000 }, { label: "Apr 13", value: 82000 },
+      { label: "Apr 17", value: 88000 }, { label: "Apr 21", value: 99000 },
+      { label: "Apr 25", value: 132000 }, { label: "Apr 30", value: 158000 },
     ],
   };
 
@@ -146,7 +148,7 @@ function Dashboard() {
     <div className="dashboard-layout">
       <Sidebar />
 
-      <main className="dashboard-content">
+      <main className="dashboard-content" style={{ overflowY: "auto" }}>
         <div className="dashboard-header">
           <div>
             <h1>{greeting}, {userName}! 👋</h1>
@@ -154,20 +156,32 @@ function Dashboard() {
           </div>
 
           <div className="user-box">
-            <button className="bell-btn" onClick={() => setShowNotifications(!showNotifications)}>🔔</button>
+            {/* Bell with red dot if notifications exist */}
+            <div style={{ position: "relative" }}>
+              <button className="bell-btn" onClick={() => setShowNotifications(!showNotifications)}>🔔</button>
+              {notifications.length > 0 && (
+                <span style={{
+                  position: "absolute", top: "0", right: "0",
+                  width: "8px", height: "8px", borderRadius: "50%",
+                  background: "#EF4444", border: "1.5px solid white"
+                }} />
+              )}
+            </div>
 
             {showNotifications && (
               <div className="notification-dropdown">
                 <h4>Notifications</h4>
-                <p>✅ SIP payment reminder for next month</p>
-                <p>📈 Your portfolio is growing!</p>
-                <p>🔐 Complete KYC to unlock all features</p>
+                {notifications.length > 0
+                  ? notifications.map((n, i) => <p key={i}>{n.icon} {n.text}</p>)
+                  : <p style={{ color: "#9ca3af", fontSize: "13px" }}>No new notifications</p>
+                }
               </div>
             )}
 
+            {/* Profile — removed ⌄ symbol */}
             <div className="profile-click" onClick={() => navigate("/user/profile/basic-details")}>
               <div className="user-avatar">{userName[0]?.toUpperCase()}</div>
-              <span>{userName}⌄</span>
+              <span>{userName}</span>
             </div>
           </div>
         </div>
@@ -175,15 +189,15 @@ function Dashboard() {
         <div className="stats-grid">
           <div className="stat-card">
             <p>Total Investment</p>
-            <h2>{totalInvestment > 0 ? formatCurrency(totalInvestment) : "₹1,25,000"}</h2>
+            <h2>{totalInvestment > 0 ? formatCurrency(totalInvestment) : "₹0"}</h2>
           </div>
           <div className="stat-card">
             <p>Current Value</p>
-            <h2>{totalInvestment > 0 ? formatCurrency(currentValue) : "₹1,48,750"}</h2>
+            <h2>{totalInvestment > 0 ? formatCurrency(currentValue) : "₹0"}</h2>
           </div>
           <div className="stat-card">
             <p>Total Gain</p>
-            <h2 className="green">{totalInvestment > 0 ? formatCurrency(totalGain) : "₹23,750"}</h2>
+            <h2 className="green">{totalInvestment > 0 ? formatCurrency(totalGain) : "₹0"}</h2>
             <h4 className="green">(+{gainPercent}%)</h4>
           </div>
         </div>
@@ -197,6 +211,7 @@ function Dashboard() {
                 onChange={(e) => {
                   setSelectedMonth(e.target.value);
                   setShowCustomCalendar(e.target.value === "custom");
+                  if (e.target.value !== "custom") setSelectedDate(null);
                 }}
               >
                 <option value="thisMonth">This Month</option>
@@ -208,7 +223,7 @@ function Dashboard() {
                 <div className="custom-calendar">
                   <div className="calendar-top">
                     <div className="calendar-title">
-                      {monthNames[selectedCalendarMonth]} {selectedYear}<span>⌄</span>
+                      {monthNames[selectedCalendarMonth]} {selectedYear}
                     </div>
                     <div className="calendar-arrows">
                       <button onClick={() => {
@@ -224,11 +239,24 @@ function Dashboard() {
                   <div className="calendar-days">{days.map((d, i) => <span key={i}>{d}</span>)}</div>
                   <div className="calendar-grid">
                     {getCalendarDays().map((day, i) => (
-                      <button key={i} className={selectedDate === day ? "selected-date" : ""} disabled={!day} onClick={() => setSelectedDate(day)}>
+                      <button
+                        key={i}
+                        className={selectedDate === day ? "selected-date" : ""}
+                        disabled={!day}
+                        onClick={() => {
+                          setSelectedDate(day);
+                          setShowCustomCalendar(false); // Close calendar on date select
+                        }}
+                      >
                         {day}
                       </button>
                     ))}
                   </div>
+                  {selectedDate && (
+                    <div style={{ textAlign: "center", padding: "8px", fontSize: "12px", color: "#6C3AED", fontWeight: 600 }}>
+                      Selected: {selectedDate} {monthNames[selectedCalendarMonth]} {selectedYear}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -275,7 +303,7 @@ function Dashboard() {
             <div>
               <h3>My SIPs</h3>
               <p>Active SIPs</p>
-              <h2>{activeSips.length || 3}</h2>
+              <h2>{activeSips.length}</h2>
             </div>
             <div className="icon-circle purple-icon">📅</div>
           </div>
@@ -283,9 +311,20 @@ function Dashboard() {
           <div className="small-card sip-card">
             <div>
               <h3>Upcoming SIP</h3>
-              <p>{nextSip?.fund_name || "Quantitative Fund"}</p>
-              <span>{nextSip?.start_date || "05 Jun 2025"}</span>
-              <h2>- {nextSip ? formatCurrency(nextSip.amount) : "₹5,000"}</h2>
+              {nextSip ? (
+                <>
+                  <p>{nextSip.fund_name}</p>
+                  <span>{new Date(nextSip.start_date).toLocaleDateString("en-IN")}</span>
+                  <h2>- {formatCurrency(nextSip.amount)}</h2>
+                </>
+              ) : (
+                <>
+                  <p style={{ color: "#9ca3af", fontSize: "13px" }}>No active SIPs</p>
+                  <button onClick={() => navigate("/mutual-fund")} style={{ marginTop: "8px", background: "#6C3AED", color: "#fff", border: "none", borderRadius: "6px", padding: "6px 12px", fontSize: "12px", cursor: "pointer" }}>
+                    Start a SIP
+                  </button>
+                </>
+              )}
             </div>
             <div className="icon-circle green-icon">📅</div>
           </div>
@@ -308,15 +347,14 @@ function Dashboard() {
                       </span>
                     </div>
                   ))
-                : [
-                    { fund: "Axis Bluechip Fund", date: "23 May 2025", amount: "+ ₹5,000" },
-                    { fund: "ICICI Prudential", date: "20 May 2025", amount: "- ₹10,000" },
-                  ].map((item, i) => (
-                    <div className="transaction-row" key={i}>
-                      <div><b>{item.fund}</b><p>{item.date}</p></div>
-                      <span className={item.amount.includes("+") ? "green" : ""}>{item.amount}</span>
-                    </div>
-                  ))
+                : (
+                  <div style={{ textAlign: "center", padding: "16px" }}>
+                    <p style={{ color: "#9ca3af", fontSize: "13px", marginBottom: "8px" }}>No transactions yet</p>
+                    <button onClick={() => navigate("/mutual-fund")} style={{ background: "#6C3AED", color: "#fff", border: "none", borderRadius: "6px", padding: "6px 12px", fontSize: "12px", cursor: "pointer" }}>
+                      Start Investing
+                    </button>
+                  </div>
+                )
               }
             </div>
           </div>

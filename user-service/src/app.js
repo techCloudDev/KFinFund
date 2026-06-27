@@ -3,8 +3,8 @@ const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
-const mongoSanitize = require("express-mongo-sanitize");
-const xss = require("xss-clean");
+
+
 const pool = require("./config/db");
 const userRoutes = require("./routes/userRoutes");
 
@@ -23,11 +23,9 @@ app.use(cors({
 // ── Body Parser ──
 app.use(express.json({ limit: "10kb" })); // Limit body size to prevent large payload attacks
 
-// ── XSS Protection ──
-app.use(xss());
 
-// ── NoSQL Injection Protection ──
-app.use(mongoSanitize());
+
+
 
 // ── Global Rate Limiter ──
 const globalLimiter = rateLimit({

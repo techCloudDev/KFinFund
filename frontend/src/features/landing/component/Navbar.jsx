@@ -28,11 +28,10 @@ const NAV_ITEMS = [
     label: "My Account",
     items: [
       { label: "Dashboard", to: "/dashboard", requiresAuth: true },
-      { label: "My Portfolio", to: "/portfolio", requiresAuth: true },
-      { label: "My SIPs", to: "/user/sip", requiresAuth: true },
-      { label: "Transactions", to: "/transactions", requiresAuth: true },
-      { label: "KYC", to: "/user/profile/kyc", requiresAuth: true },
-      { label: "Profile", to: "/user/profile/basic-details", requiresAuth: true },
+{ label: "My Portfolio", to: "/portfolio", requiresAuth: true },
+{ label: "My SIPs", to: "/user/sip", requiresAuth: true },
+{ label: "Transactions", to: "/transactions", requiresAuth: true },
+{ label: "Profile", to: "/user/profile/basic-details", requiresAuth: true },
     ],
   },
 ];

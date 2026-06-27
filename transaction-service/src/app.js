@@ -4,7 +4,7 @@ const cors = require("cors");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
 const mongoSanitize = require("express-mongo-sanitize");
-const xss = require("xss-clean");
+
 const pool = require("./config/db");
 const transactionRoutes = require("./routes/transactionRoutes");
 
@@ -23,8 +23,6 @@ app.use(cors({
 // ── Body Parser ──
 app.use(express.json({ limit: "10kb" }));
 
-// ── XSS Protection ──
-app.use(xss());
 
 // ── NoSQL Injection Protection ──
 app.use(mongoSanitize());

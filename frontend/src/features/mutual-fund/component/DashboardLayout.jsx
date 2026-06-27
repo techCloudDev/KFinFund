@@ -1,9 +1,30 @@
-import { Link, useLocation } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import logoImg from "/logo.png";
 import { Avatar, AvatarImage, AvatarFallback } from "./Avatar";
 
+const getTokenData = () => {
+  const token = localStorage.getItem("token");
+  if (!token) return null;
+  try { return JSON.parse(atob(token.split(".")[1])); }
+  catch { return null; }
+};
+
 export default function DashboardLayout({ children, pageTitle = "Dashboard" }) {
   const location = useLocation();
+  const navigate = useNavigate();
+  const [userName, setUserName] = useState("User");
+
+  useEffect(() => {
+    const tokenData = getTokenData();
+    if (tokenData?.email) setUserName(tokenData.email.split("@")[0]);
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("watchlist");
+    navigate("/");
+  };
 
   const menuItems = [
     { name: "Dashboard", path: "/dashboard" },
@@ -11,9 +32,9 @@ export default function DashboardLayout({ children, pageTitle = "Dashboard" }) {
     { name: "Mutual Funds", path: "/mutual-fund" },
     { name: "Portfolio", path: "/portfolio" },
     { name: "Transactions", path: "/transactions" },
-    { name: "Reports", path: "/reports" },
+    { name: "Reports", path: "/user/profile/report" },
     { name: "Watchlist", path: "/mutual-fund/watchlist" },
-    { name: "Profile", path: "/user/profile" },
+    { name: "Profile", path: "/user/profile/basic-details" },
     { name: "Support", path: "/help" },
   ];
 
@@ -28,7 +49,8 @@ export default function DashboardLayout({ children, pageTitle = "Dashboard" }) {
 
         <nav className="mf-sidebar-menu">
           {menuItems.map((item) => {
-            const isActive = location.pathname === item.path;
+            const isActive = location.pathname === item.path ||
+              (item.path !== "/dashboard" && location.pathname.startsWith(item.path));
             return (
               <Link
                 key={item.name}
@@ -39,8 +61,27 @@ export default function DashboardLayout({ children, pageTitle = "Dashboard" }) {
               </Link>
             );
           })}
+          {/* Logout */}
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="mf-sidebar-item"
+            style={{ background: "none", border: "none", cursor: "pointer", width: "100%", textAlign: "left", color: "#EF4444", fontFamily: "inherit", fontSize: "inherit" }}
+          >
+            <span>Logout</span>
+          </button>
         </nav>
 
+        {/* Upgrade Card */}
+        <div className="mf-sidebar-upgrade">
+          <div className="mf-sidebar-upgrade-title">Upgrade to Premium</div>
+          <div className="mf-sidebar-upgrade-text">
+            Unlock advanced insights and specialized tools
+          </div>
+          <button type="button" className="mf-sidebar-upgrade-btn">
+            Upgrade Now
+          </button>
+        </div>
       </aside>
 
       {/* Main content wrapper */}
@@ -50,7 +91,7 @@ export default function DashboardLayout({ children, pageTitle = "Dashboard" }) {
           <h1 className="mf-header-title">{pageTitle}</h1>
 
           <div className="mf-header-actions">
-            {/* Bell Icon with Badge */}
+            {/* Bell Icon */}
             <div className="mf-header-bell" title="Notifications">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -69,13 +110,17 @@ export default function DashboardLayout({ children, pageTitle = "Dashboard" }) {
               </svg>
               <span className="mf-header-bell-badge" />
             </div>
+
             {/* Profile Avatar and Name */}
-            <div className="mf-header-profile">
+            <div
+              className="mf-header-profile"
+              style={{ cursor: "pointer" }}
+              onClick={() => navigate("/user/profile/basic-details")}
+            >
               <Avatar style={{ width: "36px", height: "36px" }}>
-                <AvatarImage src="https://github.com/shadcn.png" alt="Suman" />
-                <AvatarFallback>AM</AvatarFallback>
+                <AvatarFallback>{userName[0]?.toUpperCase()}</AvatarFallback>
               </Avatar>
-              <span className="mf-header-profile-name">Suman</span>
+              <span className="mf-header-profile-name">{userName}</span>
             </div>
           </div>
         </header>

@@ -194,16 +194,50 @@ export function MutualFundDetailPage() {
 
   const handleTabChange = (mode) => { setInvestMode(mode); setInvestAmount(mode === "sip" ? "100" : "500"); };
 
-  const handleInvestSubmit = (e) => {
+  const handleInvestSubmit = async (e) => {
     e.preventDefault();
     if (!isLoggedIn) { navigate("/login"); return; }
     if (!investAmount || parseFloat(investAmount) < minAmount) { alert(`Minimum amount is ₹${minAmount}`); return; }
-    if (investMode === "sip") {
-      const year = sipDate.split("-")[0];
-      if (!/^\d{4}$/.test(year)) { alert("Please select a valid date."); return; }
+
+    const token = localStorage.getItem("token");
+    setLoading(true);
+    try {
+      if (investMode === "lumpsum") {
+        // Call transaction service
+        const res = await fetch(`${import.meta.env.VITE_TRANSACTION_API || "http://localhost:4003"}/api/transactions/buy`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            fund_id: fundData.name,
+            amount: parseFloat(investAmount),
+            nav: fundData.currentNav,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Transaction failed");
+        setTransactionId(data.transaction?.id || "KFF-" + Math.floor(10000000 + Math.random() * 90000000));
+      } else {
+        // Call SIP service
+        const res = await fetch(`${import.meta.env.VITE_SIP_API || "http://localhost:4004"}/api/sips`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            fund_name: fundData.name,
+            amount: parseFloat(investAmount),
+            frequency: "MONTHLY",
+            start_date: sipDate,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "SIP creation failed");
+        setTransactionId(data.id || "KFF-" + Math.floor(10000000 + Math.random() * 90000000));
+      }
+      setInvestSuccess(true);
+    } catch (err) {
+      alert(err.message || "Investment failed. Please try again.");
+    } finally {
+      setLoading(false);
     }
-    setTransactionId("KFF-" + Math.floor(10000000 + Math.random() * 90000000));
-    setInvestSuccess(true);
   };
 
   const content = (
