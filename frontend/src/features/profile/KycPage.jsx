@@ -19,7 +19,7 @@ export default function KycPage() {
               <span className="mf-detail-label">{item.label}</span>
               {item.label === "KYC Status" ? (
                 <span className="mf-kyc-status-badge">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: "4px" }}><polyline points="20 6 9 17 4 12"/></svg>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: "4px" }}><polyline points="20 6 9 17 4 12" /></svg>
                   {item.value}
                 </span>
               ) : (
@@ -31,7 +31,7 @@ export default function KycPage() {
           ))}
         </div>
 
-        <div 
+        <div
           style={{
             background: "linear-gradient(135deg, rgba(108, 58, 237, 0.05) 0%, rgba(255, 183, 3, 0.05) 100%)",
             border: "1px dashed rgba(108, 58, 237, 0.2)",
