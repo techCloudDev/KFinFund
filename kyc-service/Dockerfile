@@ -1,4 +1,4 @@
-FROM node:18-alpine
+FROM node:20-alpine
 
 WORKDIR /app
 
@@ -8,6 +8,8 @@ RUN npm install
 
 COPY . .
 
-EXPOSE 3003
+RUN mkdir -p uploads/kyc_documents
+
+EXPOSE 3002
 
 CMD ["node", "src/app.js"]

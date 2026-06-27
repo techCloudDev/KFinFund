@@ -147,3 +147,6 @@ kyc-service/uploads/kyc_documents/*
 
 # ...but do NOT ignore the .gitkeep files themselves
 !kyc-service/uploads/**/.gitkeep
+
+# Mac system files
+.DS_Store
