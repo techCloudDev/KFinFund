@@ -5,6 +5,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { LandingPage } from './features/landing/pages/Landpage';
 import Register from './features/auth/pages/register';
 import Login from './features/auth/pages/Login';
+import KycPage from './features/kyc/pages/KycPage';
 import Dashboard from "./features/dashboard/Dashboard";
 import MutualFundPage from './features/mutual-fund/pages/MutualFundPage';
 import MutualFundDetailPage from './features/mutual-fund/pages/MutualFundDetailPage';
@@ -12,7 +13,7 @@ import WatchlistPage from './features/mutual-fund/pages/WatchlistPage';
 import BasicDetails from './features/profile/BasicDetails';
 import ReportPage from './features/profile/ReportPage';
 import ChangePassword from './features/profile/ChangePassword';
-import KycPage from './features/profile/KycPage';
+import ProfileKycPage from './features/profile/KycPage';
 import HelpPage from './features/profile/HelpPage';
 import LogoutPage from './features/profile/LogoutPage';
 import PortfolioPage from './features/portfolio/PortfolioPage';
@@ -28,6 +29,7 @@ function App() {
           <Route path="/" element={<LandingPage />} />
           <Route path="/register" element={<Register />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/kyc" element={<KycPage />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/profile" element={<div>Profile Page Coming Soon</div>} />
           <Route path="/mutual-fund" element={<MutualFundPage />} />
@@ -45,7 +47,7 @@ function App() {
           <Route path="/user/profile/report" element={<ReportPage />} />
           <Route path="/reports" element={<Navigate to="/user/profile/report" replace />} />
           <Route path="/user/profile/change-password" element={<ChangePassword />} />
-          <Route path="/user/profile/kyc" element={<KycPage />} />
+          <Route path="/user/profile/kyc" element={<ProfileKycPage />} />
           <Route path="/help" element={<HelpPage />} />
           <Route path="/support" element={<Navigate to="/help" replace />} />
           <Route path="/user/logout" element={<LogoutPage />} />
