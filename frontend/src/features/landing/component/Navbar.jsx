@@ -206,7 +206,7 @@ export default function Navbar({ scrollY }) {
             style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: "10px" }}
           >
             <div className="lp-navbar__logo-icon" style={{ background: "none", padding: 0, display: "flex", alignItems: "center" }}>
-              <img src={logoImg} alt="KfinFund logo" style={{ width: "32px", height: "32px", objectFit: "contain" }} />
+              <img src={logoImg} alt="KfinFund logo" style={{ width: "40px", height: "40px", objectFit: "contain" }} />
             </div>
             <span className="lp-navbar__logo-text">KfinFund</span>
           </Link>

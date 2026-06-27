@@ -330,9 +330,18 @@ html {
 .lp-navbar__hamburger span {
   display: block;
   height: 2px;
-  background: var(--lp-slate-700);
+  background: #6C3AED;
   border-radius: 2px;
   transition: transform 0.25s, opacity 0.25s;
+}
+
+.lp-navbar__hamburger:hover {
+  background: rgba(139, 92, 246, 0.08);
+  border-color: rgba(139, 92, 246, 0.2);
+}
+
+.lp-navbar__hamburger:hover span {
+  background: #8B5CF6;
 }
 
 .lp-navbar__hamburger.is-open span:nth-child(1) {
@@ -387,6 +396,7 @@ html {
   left: 0;
   z-index: 100;
   background: #ffffff;
+  color: #374151;
   border-radius: 14px;
   padding: 0.5rem;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.1);
