@@ -13,7 +13,7 @@ export default function DashboardLayout({ children, pageTitle = "Dashboard" }) {
     { name: "Transactions", path: "/transactions" },
     { name: "Reports", path: "/reports" },
     { name: "Watchlist", path: "/mutual-fund/watchlist" },
-    { name: "Profile", path: "/profile" },
+    { name: "Profile", path: "/user/profile" },
     { name: "Support", path: "/help" },
   ];
 
@@ -41,16 +41,6 @@ export default function DashboardLayout({ children, pageTitle = "Dashboard" }) {
           })}
         </nav>
 
-        {/* Upgrade Card */}
-        <div className="mf-sidebar-upgrade">
-          <div className="mf-sidebar-upgrade-title">Upgrade to Premium</div>
-          <div className="mf-sidebar-upgrade-text">
-            Unlock advanced insights and specialized tools
-          </div>
-          <button type="button" className="mf-sidebar-upgrade-btn">
-            Upgrade Now
-          </button>
-        </div>
       </aside>
 
       {/* Main content wrapper */}

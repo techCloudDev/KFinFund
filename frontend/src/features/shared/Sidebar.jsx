@@ -16,18 +16,11 @@ function Sidebar() {
         <NavLink to="/transactions">Transactions</NavLink>
         <NavLink to="/watchlist">Watchlist</NavLink>
         <NavLink to="/reports">Reports</NavLink>
-        <NavLink to="/profile">Profile</NavLink>
+        <NavLink to="/user/profile">Profile</NavLink>
         <NavLink to="/settings">Settings</NavLink>
         <NavLink to="/login">Logout</NavLink>
       </nav>
 
-      <div className="upgrade-card">
-        <h4>Upgrade to Premium</h4>
-        <p>Unlock advanced insights</p>
-        <button onClick={() => alert("Premium feature coming soon")}>
-          Upgrade Now
-        </button>
-      </div>
     </aside>
   );
 }
