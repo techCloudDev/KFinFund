@@ -1,18 +1,58 @@
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
+const helmet = require("helmet");
+const rateLimit = require("express-rate-limit");
+const mongoSanitize = require("express-mongo-sanitize");
+const xss = require("xss-clean");
 const pool = require("./config/db");
 const sipRoutes = require("./routes/sipRoutes");
 
 const app = express();
 
-app.use(cors());
-app.use(express.json());
+// ── Security Headers ──
+app.use(helmet());
 
-// SIP APIs
+// ── CORS ──
+app.use(cors({
+  origin: "*",
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"]
+}));
+
+// ── Body Parser ──
+app.use(express.json({ limit: "10kb" }));
+
+// ── XSS Protection ──
+app.use(xss());
+
+// ── NoSQL Injection Protection ──
+app.use(mongoSanitize());
+
+// ── Global Rate Limiter ──
+const globalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  message: { error: "Too many requests, please try again later." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use(globalLimiter);
+
+// ── SIP Rate Limiter ──
+const sipLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 12,
+  message: { error: "Too many SIP requests, please try again after 15 minutes." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use("/api/sips", sipLimiter);
+
+// ── SIP APIs ──
 app.use("/api/sips", sipRoutes);
 
-// Health Check
+// ── Health Check ──
 app.get("/", async (req, res) => {
   try {
     const result = await pool.query("SELECT NOW()");
@@ -29,11 +69,15 @@ app.get("/", async (req, res) => {
   }
 });
 
-// Handle unknown routes
+// ── 404 Handler ──
 app.use((req, res) => {
-  res.status(404).json({
-    error: "Route not found"
-  });
+  res.status(404).json({ error: "Route not found" });
+});
+
+// ── Global Error Handler ──
+app.use((err, req, res, next) => {
+  console.error("❌ Unhandled error:", err.message);
+  res.status(500).json({ error: "Internal server error" });
 });
 
 const PORT = process.env.PORT || 3004;

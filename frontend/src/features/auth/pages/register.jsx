@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { FaArrowLeft } from "react-icons/fa";
 import StepPersonal from "../component/StepPersonal";
 import StepPassword from "../component/StepPassword";
 import StepOTP from "../component/StepOTP";
@@ -12,6 +14,7 @@ function Register() {
   const [step, setStep] = useState(1);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     fullName: "",
     email: "",
@@ -64,9 +67,32 @@ function Register() {
       <div className="auth-card">
         {step <= 4 && (
           <>
+            {/* Back to Home */}
+            <button
+              onClick={() => navigate("/")}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                color: "#6C3AED",
+                fontWeight: "600",
+                fontSize: "14px",
+                padding: "0",
+                marginBottom: "20px",
+                fontFamily: "inherit",
+              }}
+            >
+              <FaArrowLeft size={12} />
+              Back to Home
+            </button>
+
             <div className="login-logo-box">
               <img src="/logo.png" alt="KFinFund Logo" className="login-logo" />
             </div>
+
             <div className="step-line">
               {[1, 2, 3, 4].map((num) => (
                 <div
@@ -79,6 +105,7 @@ function Register() {
                 </div>
               ))}
             </div>
+
             <h2 className="auth-title">
               {step === 3
                 ? "Verify Your Phone"
@@ -128,6 +155,13 @@ function Register() {
           />
         )}
         {step === 5 && <Success />}
+
+        {/* Already have account - only show on step 1 */}
+        {step === 1 && (
+          <div className="login-bottom-text" style={{ marginTop: "16px" }}>
+            Already have an account? <Link to="/login">Login</Link>
+          </div>
+        )}
       </div>
     </div>
   );

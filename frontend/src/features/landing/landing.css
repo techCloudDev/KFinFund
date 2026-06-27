@@ -320,8 +320,8 @@ html {
   width: 40px;
   height: 40px;
   padding: 8px;
-  background: none;
-  border: 1px solid var(--lp-slate-200);
+  background: rgba(139, 92, 246, 0.12);
+  border: 1px solid rgba(139, 92, 246, 0.25);
   border-radius: 10px;
   cursor: pointer;
   font-family: inherit;
@@ -1494,5 +1494,79 @@ html {
 @media (max-width: 380px) {
   .lp-stats__grid {
     grid-template-columns: 1fr;
+  }
+}
+
+/* ── Footer Mobile ── */
+@media (max-width: 900px) {
+  .lp-footer__grid {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 2rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .lp-footer__grid {
+    grid-template-columns: 1fr !important;
+    gap: 1.5rem;
+  }
+
+  .lp-footer__bottom div {
+    flex-direction: column !important;
+    gap: 12px !important;
+    align-items: center !important;
+  }
+
+  .lp-footer {
+    padding: 2rem 1rem 1.5rem;
+  }
+}
+
+/* ── Hero Mobile Fixes ── */
+@media (max-width: 640px) {
+  .lp-hero__splash-logo {
+    justify-content: center;
+  }
+
+  .lp-hero__splash-logo-img {
+    width: 40px;
+    height: 40px;
+  }
+
+  .lp-hero__splash-logo-text {
+    font-size: 1.8rem;
+  }
+
+  .lp-hero__trust {
+    gap: 1rem;
+  }
+
+  .lp-hero__trust-value {
+    font-size: 1.2rem;
+  }
+}
+
+/* ── Steps Mobile ── */
+@media (max-width: 640px) {
+  .lp-steps__cards {
+    grid-template-columns: 1fr;
+  }
+
+  .lp-step-card {
+    padding: 1.5rem;
+  }
+}
+
+/* ── Features Mobile ── */
+@media (max-width: 640px) {
+  .lp-features__grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── Navbar Mobile Fix ── */
+@media (max-width: 900px) {
+  .lp-navbar__actions {
+    gap: 0.5rem;
   }
 }

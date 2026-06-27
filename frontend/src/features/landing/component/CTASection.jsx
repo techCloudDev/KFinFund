@@ -1,7 +1,17 @@
+import { useNavigate } from "react-router-dom";
 import { useInView } from "../hooks/useInView";
 
 export default function CTASection() {
   const [ref, inView] = useInView();
+  const navigate = useNavigate();
+
+  const handleStartInvesting = () => {
+    if (localStorage.getItem("token")) {
+      navigate("/mutual-fund");
+    } else {
+      navigate("/register");
+    }
+  };
 
   return (
     <section className="lp-cta">
@@ -16,7 +26,11 @@ export default function CTASection() {
             Start SIP with as little as ₹100/month. Zero commission, zero
             paperwork, zero excuses.
           </p>
-          <button type="button" className="lp-cta__btn">
+          <button
+            type="button"
+            className="lp-cta__btn"
+            onClick={handleStartInvesting}
+          >
             Start Investing Today →
           </button>
         </div>

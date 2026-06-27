@@ -1,48 +1,84 @@
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
+const helmet = require("helmet");
+const rateLimit = require("express-rate-limit");
+const mongoSanitize = require("express-mongo-sanitize");
+const xss = require("xss-clean");
 const pool = require("./config/db");
-
 const transactionRoutes = require("./routes/transactionRoutes");
 
 const app = express();
 
-app.use(cors());
-app.use(express.json());
+// ── Security Headers ──
+app.use(helmet());
 
-// Transaction APIs
+// ── CORS ──
+app.use(cors({
+  origin: "*",
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"]
+}));
+
+// ── Body Parser ──
+app.use(express.json({ limit: "10kb" }));
+
+// ── XSS Protection ──
+app.use(xss());
+
+// ── NoSQL Injection Protection ──
+app.use(mongoSanitize());
+
+// ── Global Rate Limiter ──
+const globalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  message: { error: "Too many requests, please try again later." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use(globalLimiter);
+
+// ── Transaction Rate Limiter (strict — financial operations) ──
+const transactionLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 12,
+  message: { error: "Too many transaction requests, please try again after 15 minutes." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use("/api/transactions/buy", transactionLimiter);
+app.use("/api/transactions/redeem", transactionLimiter);
+
+// ── Transaction APIs ──
 app.use("/api/transactions", transactionRoutes);
 
-// Health Check API
+// ── Health Check ──
 app.get("/", async (req, res) => {
   try {
     const result = await pool.query("SELECT NOW()");
-
     res.json({
       message: "Transaction Service Running",
       databaseTime: result.rows[0].now
     });
-
   } catch (error) {
     console.error(error);
-
-    res.status(500).json({
-      error: "Database connection failed"
-    });
+    res.status(500).json({ error: "Database connection failed" });
   }
 });
 
-// Unknown Routes
+// ── 404 Handler ──
 app.use((req, res) => {
-  res.status(404).json({
-    error: "Route not found"
-  });
+  res.status(404).json({ error: "Route not found" });
+});
+
+// ── Global Error Handler ──
+app.use((err, req, res, next) => {
+  console.error("❌ Unhandled error:", err.message);
+  res.status(500).json({ error: "Internal server error" });
 });
 
 const PORT = process.env.PORT || 3003;
-
 app.listen(PORT, () => {
-  console.log(
-    `✅ Transaction Service running on port ${PORT}`
-  );
+  console.log(`✅ Transaction Service running on port ${PORT}`);
 });

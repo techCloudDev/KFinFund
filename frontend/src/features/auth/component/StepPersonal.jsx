@@ -1,36 +1,18 @@
 function StepPersonal({ formData, updateData, nextStep }) {
   const states = [
-    "Andhra Pradesh",
-    "Arunachal Pradesh",
-    "Assam",
-    "Bihar",
-    "Chhattisgarh",
-    "Delhi",
-    "Goa",
-    "Gujarat",
-    "Haryana",
-    "Himachal Pradesh",
-    "Jharkhand",
-    "Karnataka",
-    "Kerala",
-    "Madhya Pradesh",
-    "Maharashtra",
-    "Odisha",
-    "Punjab",
-    "Rajasthan",
-    "Tamil Nadu",
-    "Telangana",
-    "Uttar Pradesh",
-    "Uttarakhand",
-    "West Bengal",
+    "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh",
+    "Delhi", "Goa", "Gujarat", "Haryana", "Himachal Pradesh", "Jharkhand",
+    "Karnataka", "Kerala", "Madhya Pradesh", "Maharashtra", "Odisha",
+    "Punjab", "Rajasthan", "Tamil Nadu", "Telangana", "Uttar Pradesh",
+    "Uttarakhand", "West Bengal",
   ].sort();
 
   const handleNext = () => {
-    if (!formData.fullName || !formData.email || !formData.state || !formData.city) {
-      alert("Please fill all required fields");
-      return;
-    }
-
+    if (!formData.fullName) { alert("Please enter your full name"); return; }
+    if (!formData.email) { alert("Please enter your email"); return; }
+    if (!formData.email.includes("@")) { alert("Please enter a valid email"); return; }
+    if (!formData.state) { alert("Please select your state"); return; }
+    if (!formData.city) { alert("Please enter your city"); return; }
     nextStep();
   };
 
@@ -64,9 +46,7 @@ function StepPersonal({ formData, updateData, nextStep }) {
         >
           <option value="">Select State</option>
           {states.map((state) => (
-            <option key={state} value={state}>
-              {state}
-            </option>
+            <option key={state} value={state}>{state}</option>
           ))}
         </select>
       </div>

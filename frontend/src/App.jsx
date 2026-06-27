@@ -1,3 +1,6 @@
+// Add this at the top of App.jsx
+import { useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { LandingPage } from './features/landing/pages/Landpage';
 import Register from './features/auth/pages/register';
