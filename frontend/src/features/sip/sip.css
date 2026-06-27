@@ -1,0 +1,146 @@
+/* SIP Page Styling */
+
+.sip-container {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 8px;
+}
+
+.sip-summary-card {
+  background-color: #FFFFFF;
+  border: 1px solid var(--mf-border-color);
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: var(--mf-card-shadow);
+  margin-bottom: 28px;
+}
+
+.sip-summary-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--mf-text-muted);
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.sip-summary-value {
+  font-size: 32px;
+  font-weight: 800;
+  color: var(--mf-text-dark);
+}
+
+.sip-list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.sip-list-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--mf-text-dark);
+  margin: 0;
+}
+
+.sip-sort-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--mf-text-muted);
+  font-weight: 600;
+  border-bottom: 1.5px dotted var(--mf-text-muted);
+  cursor: pointer;
+  padding-bottom: 2px;
+}
+
+.sip-cards-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.sip-card {
+  background-color: #FFFFFF;
+  border: 1px solid var(--mf-border-color);
+  border-radius: 16px;
+  padding: 20px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: var(--mf-card-shadow);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.sip-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.05);
+}
+
+.sip-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.sip-logo {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  object-fit: contain;
+  border: 1px solid var(--mf-border-color);
+  background-color: #F9FAFB;
+}
+
+.sip-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sip-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--mf-text-dark);
+}
+
+.sip-amount {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--mf-text-muted);
+}
+
+.sip-right {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.sip-date-box {
+  background-color: #FFFFFF;
+  border: 1.5px solid var(--mf-border-color);
+  border-radius: 12px;
+  width: 60px;
+  height: 60px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
+
+.sip-date-day {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--mf-text-dark);
+  line-height: 1;
+}
+
+.sip-date-month {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--mf-text-muted);
+  text-transform: uppercase;
+  margin-top: 2px;
+}

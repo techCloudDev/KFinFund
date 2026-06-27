@@ -91,6 +91,7 @@ select {
   font-size: 15px;
   outline: none;
   background: white;
+  color: #111827;
 }
 
 input:focus,
@@ -244,6 +245,7 @@ button:hover {
   border-radius: 0;
   outline: none;
   padding: 0;
+  color: #111827;
 }
 
 .otp-boxes input:last-child {
@@ -554,6 +556,7 @@ select {
   border-radius: 10px;
   border: 1px solid #ddd;
   font-size: 15px;
+  color: #111827;
 }
 
 .form-group select {

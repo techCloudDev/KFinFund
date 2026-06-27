@@ -1,0 +1,162 @@
+version: "3.8"
+
+services:
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: kfinfund-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres123
+      POSTGRES_DB: postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - kfinfund-network
+
+  # MongoDB Database
+  mongodb:
+    image: mongo:6-jammy
+    container_name: kfinfund-mongodb
+    ports:
+      - "27018:27017"
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - kfinfund-network
+
+  # User Service
+  user-service:
+    build:
+      context: ./user-service
+      dockerfile: Dockerfile
+    container_name: kfinfund-user-service
+    ports:
+      - "4001:3001"
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: kfinfund_users
+      DB_USER: postgres
+      DB_PASSWORD: postgres123
+      JWT_SECRET: kfinfund_secret_key_2026
+      PORT: 3001
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - kfinfund-network
+
+  # KYC Service
+  kyc-service:
+    build:
+      context: ./kyc-service
+      dockerfile: Dockerfile
+    container_name: kfinfund-kyc-service
+    ports:
+      - "4002:3002"
+    environment:
+      MONGO_URI: mongodb://mongodb:27017/kfinfund_kyc
+      JWT_SECRET: kfinfund_secret_key_2026
+      PORT: 3002
+    depends_on:
+      - mongodb
+    volumes:
+      - kyc_uploads:/app/uploads/kyc_documents
+    networks:
+      - kfinfund-network
+
+  # Transaction Service
+  transaction-service:
+    build:
+      context: ./transaction-service
+      dockerfile: Dockerfile
+    container_name: kfinfund-transaction-service
+    ports:
+      - "4003:3003"
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: kfinfund_transactions
+      DB_USER: postgres
+      DB_PASSWORD: postgres123
+      JWT_SECRET: kfinfund_secret_key_2026
+      PORT: 3003
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - kfinfund-network
+
+  # SIP Service
+  sip-service:
+    build:
+      context: ./sip-service
+      dockerfile: Dockerfile
+    container_name: kfinfund-sip-service
+    ports:
+      - "4004:3004"
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: kfinfund_sips
+      DB_USER: postgres
+      DB_PASSWORD: postgres123
+      JWT_SECRET: kfinfund_secret_key_2026
+      PORT: 3004
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - kfinfund-network
+
+  # Notification Service
+  notification-service:
+    build:
+      context: ./notification-service
+      dockerfile: Dockerfile
+    container_name: kfinfund-notification-service
+    ports:
+      - "4005:3005"
+    environment:
+      MONGO_URI: mongodb://mongodb:27017/kfinfund_notifications
+      RESEND_API_KEY: your_new_resend_api_key_here
+      JWT_SECRET: kfinfund_secret_key_2026
+      PORT: 3005
+    depends_on:
+      - mongodb
+    networks:
+      - kfinfund-network
+
+  # Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: kfinfund-frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - user-service
+      - kyc-service
+      - transaction-service
+      - sip-service
+      - notification-service
+    networks:
+      - kfinfund-network
+
+networks:
+  kfinfund-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  mongo_data:
+  kyc_uploads:

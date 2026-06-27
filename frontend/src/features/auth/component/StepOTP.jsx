@@ -1,4 +1,16 @@
+import { useState, useEffect } from "react";
+
 function StepOTP({ formData, updateData, nextStep, prevStep }) {
+  const [cooldown, setCooldown] = useState(0);
+
+  useEffect(() => {
+    if (cooldown === 0) return;
+    const timer = setInterval(() => {
+      setCooldown((prev) => prev - 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [cooldown]);
+
   const handleSendOTP = () => {
     if (!formData.phone || formData.phone.length !== 10) {
       alert("Please enter a valid 10 digit mobile number");
@@ -6,6 +18,13 @@ function StepOTP({ formData, updateData, nextStep, prevStep }) {
     }
 
     alert("OTP sent successfully. Use demo OTP: 123456");
+    updateData({ otp: "" }); // Clear previously entered OTP
+    setCooldown(30); // Start 30 seconds cooldown
+  };
+
+  const handleResend = () => {
+    if (cooldown > 0) return;
+    handleSendOTP();
   };
 
   const handleNext = () => {
@@ -23,14 +42,28 @@ function StepOTP({ formData, updateData, nextStep, prevStep }) {
   };
 
   const handleOtpChange = (value, index) => {
-    const otpArray = formData.otp.split("");
+    const otpArray = Array.from({ length: 6 }, (_, i) => formData.otp[i] || "");
     otpArray[index] = value.replace(/\D/g, "");
-    const newOtp = otpArray.join("").slice(0, 6);
+    const newOtp = otpArray.join("");
     updateData({ otp: newOtp });
 
     const nextInput = document.getElementById(`otp-${index + 1}`);
     if (value && nextInput) {
       nextInput.focus();
+    }
+  };
+
+  const handleKeyDown = (e, index) => {
+    if (e.key === "Backspace") {
+      const otpArray = Array.from({ length: 6 }, (_, i) => formData.otp[i] || "");
+      if (!otpArray[index] && index > 0) {
+        otpArray[index - 1] = "";
+        updateData({ otp: otpArray.join("") });
+        const prevInput = document.getElementById(`otp-${index - 1}`);
+        if (prevInput) {
+          prevInput.focus();
+        }
+      }
     }
   };
 
@@ -70,13 +103,23 @@ function StepOTP({ formData, updateData, nextStep, prevStep }) {
               maxLength="1"
               value={formData.otp[index] || ""}
               onChange={(e) => handleOtpChange(e.target.value, index)}
+              onKeyDown={(e) => handleKeyDown(e, index)}
             />
           ))}
         </div>
       </div>
 
       <p className="resend-text">
-        Didn&apos;t receive OTP? <span>Resend</span>
+        Didn&apos;t receive OTP?{" "}
+        {cooldown > 0 ? (
+          <span style={{ color: "#9ca3af", cursor: "not-allowed", fontWeight: 600 }}>
+            Resend in {cooldown}s
+          </span>
+        ) : (
+          <span onClick={handleResend} style={{ cursor: "pointer" }}>
+            Resend
+          </span>
+        )}
       </p>
 
       <div className="button-row">
