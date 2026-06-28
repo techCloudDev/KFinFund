@@ -1060,3 +1060,84 @@
   color: var(--mf-text-muted);
   flex-shrink: 0;
 }
+
+/* ── Mobile Sidebar & Hamburger ── */
+
+/* Hide mobile sidebar and backdrop on desktop */
+.mf-sidebar-mobile { display: none; }
+.mf-sidebar-backdrop { display: none; }
+.mf-hamburger { display: none !important; }
+
+@media (max-width: 768px) {
+
+  /* Hide desktop sidebar */
+  .mf-sidebar-desktop { display: none !important; }
+
+  /* Show mobile sidebar (hidden off-screen by default, JS controls translateX) */
+  .mf-sidebar-mobile {
+    display: flex !important;
+    width: 260px;
+  }
+
+  /* Show backdrop when sidebar open */
+  .mf-sidebar-backdrop {
+    display: block !important;
+  }
+
+  /* Show hamburger button */
+  .mf-hamburger {
+    display: flex !important;
+  }
+
+  /* Header adjustments */
+  .mf-top-header {
+    padding: 0 16px;
+  }
+
+  .mf-header-profile-name {
+    display: none; /* hide name on mobile, show avatar only */
+  }
+
+  /* Workspace padding */
+  .mf-workspace {
+    padding: 16px;
+  }
+
+  /* Stack detail grid on mobile */
+  .mf-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Profile container stack */
+  .mf-profile-container {
+    flex-direction: column;
+  }
+
+  .mf-profile-sidebar {
+    width: 100% !important;
+  }
+
+  /* Dashboard stats stack */
+  .stats-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .main-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .bottom-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Mutual fund cards */
+  .mf-cards-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .mf-cards-grid {
+    grid-template-columns: 1fr;
+  }
+}

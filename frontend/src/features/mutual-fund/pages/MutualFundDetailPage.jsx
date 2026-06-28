@@ -6,6 +6,8 @@ import { AMC_LOGOS } from "../component/amc_logo";
 import FundChart from "../component/FundChart";
 import "../mutual-fund.css";
 
+const KYC_SERVICE_URL = import.meta.env.VITE_KYC_API || "http://localhost:4002";
+
 const getAmcLogo = (name = "") => {
   const normalized = name.toLowerCase();
   for (const key in AMC_LOGOS) {
@@ -34,6 +36,16 @@ export function MutualFundDetailPage() {
   const [investAmount, setInvestAmount] = useState("100");
   const [investSuccess, setInvestSuccess] = useState(false);
   const [transactionId, setTransactionId] = useState("");
+  const [kycStatus, setKycStatus] = useState(null); // null = loading
+
+  // Fetch KYC status when logged in
+  useEffect(() => {
+    if (!isLoggedIn) { setKycStatus("NOT_LOGGED_IN"); return; }
+    const token = localStorage.getItem("token");
+    fetch(`${KYC_SERVICE_URL}/api/kyc/status`, {
+      headers: { Authorization: `Bearer ${token}` }
+    }).then(r => r.json()).then(d => setKycStatus(d.status || "NOT_SUBMITTED")).catch(() => setKycStatus("NOT_SUBMITTED"));
+  }, [isLoggedIn]);
 
   const { daysInNextMonth, nextMonthName, nextMonthYear, nextMonthIndex } = useMemo(() => {
     const today = new Date();
@@ -161,7 +173,7 @@ export function MutualFundDetailPage() {
         const res = await fetch(`https://api.mfapi.in/mf/${schemeCode}`);
         if (!res.ok) throw new Error("Scheme not found");
         const json = await res.json();
-        if (!json || !json.data || json.data.length === 0) throw new Error("No data returned");
+        if (!json || !json.data || json.data.length === 0) throw new Error("This fund has no active NAV data. It may be discontinued or merged. Please go back and select another fund.");
         const currentNav = parseFloat(json.data[0].nav);
         const point1Y = getNavYearsAgo(json.data, 1);
         const point3Y = getNavYearsAgo(json.data, 3);
@@ -197,36 +209,36 @@ export function MutualFundDetailPage() {
   const handleInvestSubmit = async (e) => {
     e.preventDefault();
     if (!isLoggedIn) { navigate("/login"); return; }
+
+    // KYC gate
+    if (kycStatus === "NOT_SUBMITTED") {
+      navigate("/user/profile/kyc");
+      return;
+    }
+    if (kycStatus === "PENDING") {
+      alert("Your KYC is under review. You can invest once it is approved (1–2 working days).");
+      return;
+    }
+
     if (!investAmount || parseFloat(investAmount) < minAmount) { alert(`Minimum amount is ₹${minAmount}`); return; }
 
     const token = localStorage.getItem("token");
     setLoading(true);
     try {
       if (investMode === "lumpsum") {
-        // Call transaction service
         const res = await fetch(`${import.meta.env.VITE_TRANSACTION_API || "http://localhost:4003"}/api/transactions/buy`, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify({
-            fund_id: fundData.name,
-            amount: parseFloat(investAmount),
-            nav: fundData.currentNav,
-          }),
+          body: JSON.stringify({ fund_id: fundData.name, amount: parseFloat(investAmount), nav: fundData.currentNav }),
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Transaction failed");
         setTransactionId(data.transaction?.id || "KFF-" + Math.floor(10000000 + Math.random() * 90000000));
       } else {
-        // Call SIP service
         const res = await fetch(`${import.meta.env.VITE_SIP_API || "http://localhost:4004"}/api/sips`, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify({
-            fund_name: fundData.name,
-            amount: parseFloat(investAmount),
-            frequency: "MONTHLY",
-            start_date: sipDate,
-          }),
+          body: JSON.stringify({ fund_name: fundData.name, amount: parseFloat(investAmount), frequency: "MONTHLY", start_date: sipDate }),
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "SIP creation failed");
@@ -240,11 +252,126 @@ export function MutualFundDetailPage() {
     }
   };
 
+  // KYC invest panel — what to show based on status
+  const renderInvestPanel = () => {
+    // Not logged in
+    if (!isLoggedIn) {
+      return (
+        <div style={{ textAlign: "center", padding: "24px 0" }}>
+          <div style={{ fontSize: "40px", marginBottom: "12px" }}>🔐</div>
+          <h3 style={{ fontSize: "16px", fontWeight: "700", color: "#111827", margin: "0 0 8px" }}>Login to Invest</h3>
+          <p style={{ fontSize: "13px", color: "#6b7280", marginBottom: "16px" }}>Create an account or login to start investing in this fund.</p>
+          <button onClick={() => navigate("/login")} style={{ background: "#6C3AED", color: "#fff", border: "none", borderRadius: "8px", padding: "10px 24px", fontSize: "14px", fontWeight: "700", cursor: "pointer", width: "100%" }}>
+            Login to Continue →
+          </button>
+          <button onClick={() => navigate("/register")} style={{ background: "transparent", color: "#6C3AED", border: "1.5px solid #6C3AED", borderRadius: "8px", padding: "10px 24px", fontSize: "14px", fontWeight: "700", cursor: "pointer", width: "100%", marginTop: "8px" }}>
+            Create Account
+          </button>
+        </div>
+      );
+    }
+
+    // KYC not submitted
+    if (kycStatus === "NOT_SUBMITTED") {
+      return (
+        <div style={{ textAlign: "center", padding: "16px 0" }}>
+          <div style={{ fontSize: "40px", marginBottom: "12px" }}>📋</div>
+          <h3 style={{ fontSize: "16px", fontWeight: "700", color: "#111827", margin: "0 0 8px" }}>KYC Required</h3>
+          <p style={{ fontSize: "13px", color: "#6b7280", marginBottom: "16px", lineHeight: "1.5" }}>
+            As per SEBI regulations, you must complete KYC verification before investing in mutual funds.
+          </p>
+          <div style={{ background: "#fff7ed", border: "1px solid #fed7aa", borderRadius: "8px", padding: "12px", marginBottom: "16px", fontSize: "13px", color: "#9a3412", textAlign: "left" }}>
+            ⚠️ KYC verification is mandatory to protect your investments and comply with regulations.
+          </div>
+          <button onClick={() => navigate("/user/profile/kyc")} style={{ background: "#f59e0b", color: "#fff", border: "none", borderRadius: "8px", padding: "12px 24px", fontSize: "14px", fontWeight: "700", cursor: "pointer", width: "100%" }}>
+            Complete KYC Now →
+          </button>
+        </div>
+      );
+    }
+
+    // KYC pending
+    if (kycStatus === "PENDING") {
+      return (
+        <div style={{ textAlign: "center", padding: "16px 0" }}>
+          <div style={{ fontSize: "40px", marginBottom: "12px" }}>⏳</div>
+          <h3 style={{ fontSize: "16px", fontWeight: "700", color: "#111827", margin: "0 0 8px" }}>KYC Under Review</h3>
+          <p style={{ fontSize: "13px", color: "#6b7280", marginBottom: "16px", lineHeight: "1.5" }}>
+            Your KYC documents are being verified. You can invest once approved.
+          </p>
+          <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: "8px", padding: "12px", fontSize: "13px", color: "#1e40af", textAlign: "left" }}>
+            ℹ️ Verification typically takes <strong>1–2 working days</strong>. We'll notify you once done.
+          </div>
+        </div>
+      );
+    }
+
+    // KYC approved — show normal invest form
+    if (investSuccess) {
+      return (
+        <div className="mf-success-container">
+          <div className="mf-success-icon-box">✓</div>
+          <h3 className="mf-success-title">Investment Initialized!</h3>
+          <p className="mf-success-text">Successfully set up a <strong>{investMode === "sip" ? "Monthly SIP" : "One-Time"}</strong> investment of <strong>₹{parseFloat(investAmount).toLocaleString("en-IN")}</strong> in <br /><em>{fundData.name}</em>.</p>
+          <div style={{ backgroundColor: "#F3F4F6", padding: "12px", borderRadius: "8px", fontSize: "12px", color: "var(--mf-text-muted)", marginBottom: "20px", textAlign: "left" }}>
+            <div><strong>Transaction ID:</strong> {transactionId}</div>
+            {investMode === "sip" && <div style={{ marginTop: "4px" }}><strong>Installment Day:</strong> {formattedInstallmentDate}</div>}
+            <div style={{ marginTop: "4px" }}><strong>Order Date:</strong> {new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</div>
+          </div>
+          <button type="button" className="mf-success-close" onClick={() => setInvestSuccess(false)}>New Investment</button>
+        </div>
+      );
+    }
+
+    return (
+      <form onSubmit={handleInvestSubmit}>
+        <h3 style={{ fontSize: "16px", fontWeight: 700, margin: "0 0 16px 0", color: "var(--mf-text-dark)", textAlign: "left" }}>Start Investment</h3>
+        {/* KYC verified badge */}
+        <div style={{ display: "flex", alignItems: "center", gap: "6px", background: "#f0fdf4", border: "1px solid #86efac", borderRadius: "8px", padding: "8px 12px", marginBottom: "16px", fontSize: "13px", color: "#15803d", fontWeight: "600" }}>
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          KYC Verified — You can invest freely
+        </div>
+        <div className="mf-invest-tabs">
+          <button type="button" className={`mf-invest-tab ${investMode === "sip" ? "active" : ""}`} onClick={() => handleTabChange("sip")}>Monthly SIP</button>
+          <button type="button" className={`mf-invest-tab ${investMode === "lumpsum" ? "active" : ""}`} onClick={() => handleTabChange("lumpsum")}>One-Time</button>
+        </div>
+        <div className="mf-invest-input-wrapper">
+          <label className="mf-invest-label">Investment Amount</label>
+          <div className="mf-invest-input-box">
+            <span className="mf-invest-currency">₹</span>
+            <input type="number" className="mf-invest-input" value={investAmount} onChange={(e) => setInvestAmount(e.target.value)} min={minAmount} required />
+          </div>
+          {isInvalidAmount && investAmount !== "" && <span style={{ color: "#EF4444", fontSize: "12px", marginTop: "6px", display: "block" }}>Minimum {investMode === "sip" ? "SIP" : "One-Time"} amount is ₹{minAmount}</span>}
+        </div>
+        {investMode === "sip" && (
+          <div className="mf-invest-input-wrapper">
+            <label className="mf-invest-label" style={{ textTransform: "lowercase" }}>sip installment date</label>
+            <div className="sip-calendar-container">
+              <div className="sip-calendar-grid">
+                {daysArray.map((day) => (
+                  <button key={day} type="button" className={`sip-calendar-day ${day === selectedSipDay ? "selected" : ""}`} onClick={() => setSelectedSipDay(day)}>{day}</button>
+                ))}
+              </div>
+              <div className="sip-calendar-info">
+                <span>Next SIP instalment on {String(selectedSipDay).padStart(2, "0")} of {nextMonthName}</span>
+              </div>
+            </div>
+          </div>
+        )}
+        <button type="submit" className="mf-invest-btn" disabled={isInvalidAmount} style={isInvalidAmount ? { opacity: 0.5, cursor: "not-allowed" } : {}}>
+          {investMode === "sip" ? "Start Monthly SIP" : "Invest Now"}
+        </button>
+      </form>
+    );
+  };
+
   const content = (
     <>
-      <button type="button" className="mf-back-btn" onClick={() => navigate("/mutual-fund")} style={{ marginBottom: "24px" }}>← Back to List</button>
+      <div style={{ marginBottom: "24px" }}>
+  <button type="button" className="mf-back-btn" onClick={() => navigate("/mutual-fund")}>← Back to List</button>
+</div>
 
-      {loading && (<div className="mf-loader-container"><div className="mf-spinner" /><div className="mf-loader-text">Loading scheme data from mfapi.in...</div></div>)}
+      {loading && (<div className="mf-loader-container"><div className="mf-spinner" /><div className="mf-loader-text">Loading scheme data...</div></div>)}
 
       {error && (
         <div className="mf-empty-state">
@@ -313,59 +440,9 @@ export function MutualFundDetailPage() {
             </div>
           </div>
 
+          {/* Invest panel — KYC gated */}
           <div className="mf-invest-card">
-            {!investSuccess ? (
-              <form onSubmit={handleInvestSubmit}>
-                <h3 style={{ fontSize: "16px", fontWeight: 700, margin: "0 0 16px 0", color: "var(--mf-text-dark)", textAlign: "left" }}>Start Investment</h3>
-                {!isLoggedIn && (
-                  <div style={{ background: "#fef3c7", border: "1px solid #f59e0b", borderRadius: "8px", padding: "12px", marginBottom: "16px", fontSize: "13px", color: "#92400e" }}>
-                    Please <button type="button" onClick={() => navigate("/login")} style={{ background: "none", border: "none", color: "#6C3AED", fontWeight: 700, cursor: "pointer", padding: 0 }}>login</button> to invest in this fund.
-                  </div>
-                )}
-                <div className="mf-invest-tabs">
-                  <button type="button" className={`mf-invest-tab ${investMode === "sip" ? "active" : ""}`} onClick={() => handleTabChange("sip")}>Monthly SIP</button>
-                  <button type="button" className={`mf-invest-tab ${investMode === "lumpsum" ? "active" : ""}`} onClick={() => handleTabChange("lumpsum")}>One-Time</button>
-                </div>
-                <div className="mf-invest-input-wrapper">
-                  <label className="mf-invest-label">Investment Amount</label>
-                  <div className="mf-invest-input-box">
-                    <span className="mf-invest-currency">₹</span>
-                    <input type="number" className="mf-invest-input" value={investAmount} onChange={(e) => setInvestAmount(e.target.value)} min={minAmount} required />
-                  </div>
-                  {isInvalidAmount && investAmount !== "" && <span style={{ color: "#EF4444", fontSize: "12px", marginTop: "6px", display: "block" }}>Minimum {investMode === "sip" ? "SIP" : "One-Time"} amount is ₹{minAmount}</span>}
-                </div>
-                {investMode === "sip" && (
-                  <div className="mf-invest-input-wrapper">
-                    <label className="mf-invest-label" style={{ textTransform: "lowercase" }}>sip installment date</label>
-                    <div className="sip-calendar-container">
-                      <div className="sip-calendar-grid">
-                        {daysArray.map((day) => (
-                          <button key={day} type="button" className={`sip-calendar-day ${day === selectedSipDay ? "selected" : ""}`} onClick={() => setSelectedSipDay(day)}>{day}</button>
-                        ))}
-                      </div>
-                      <div className="sip-calendar-info">
-                        <span>Next SIP instalment on {String(selectedSipDay).padStart(2, "0")} of {nextMonthName}</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-                <button type="submit" className="mf-invest-btn" disabled={isInvalidAmount} style={isInvalidAmount ? { opacity: 0.5, cursor: "not-allowed" } : {}}>
-                  {investMode === "sip" ? "Start Monthly SIP" : "Invest Now"}
-                </button>
-              </form>
-            ) : (
-              <div className="mf-success-container">
-                <div className="mf-success-icon-box">✓</div>
-                <h3 className="mf-success-title">Investment Initialized!</h3>
-                <p className="mf-success-text">Successfully set up a <strong>{investMode === "sip" ? "Monthly SIP" : "One-Time"}</strong> investment of <strong>₹{parseFloat(investAmount).toLocaleString("en-IN")}</strong> in <br /><em>{fundData.name}</em>.</p>
-                <div style={{ backgroundColor: "#F3F4F6", padding: "12px", borderRadius: "8px", fontSize: "12px", color: "var(--mf-text-muted)", marginBottom: "20px", textAlign: "left" }}>
-                  <div><strong>Transaction ID:</strong> {transactionId}</div>
-                  {investMode === "sip" && <div style={{ marginTop: "4px" }}><strong>Installment Day:</strong> {formattedInstallmentDate}</div>}
-                  <div style={{ marginTop: "4px" }}><strong>Order Date:</strong> {new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</div>
-                </div>
-                <button type="button" className="mf-success-close" onClick={() => setInvestSuccess(false)}>New Investment</button>
-              </div>
-            )}
+            {renderInvestPanel()}
           </div>
         </div>
       )}

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import logoImg from "/logo.png";
-import { Avatar, AvatarImage, AvatarFallback } from "./Avatar";
+import { Avatar, AvatarFallback } from "./Avatar";
 
 const getTokenData = () => {
   const token = localStorage.getItem("token");
@@ -14,11 +14,15 @@ export default function DashboardLayout({ children, pageTitle = "Dashboard" }) {
   const location = useLocation();
   const navigate = useNavigate();
   const [userName, setUserName] = useState("User");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     const tokenData = getTokenData();
     if (tokenData?.email) setUserName(tokenData.email.split("@")[0]);
   }, []);
+
+  // Close sidebar on route change
+  useEffect(() => { setSidebarOpen(false); }, [location.pathname]);
 
   const handleLogout = () => {
     localStorage.removeItem("token");
@@ -27,91 +31,133 @@ export default function DashboardLayout({ children, pageTitle = "Dashboard" }) {
   };
 
   const menuItems = [
-    { name: "Dashboard", path: "/dashboard" },
-    { name: "SIP", path: "/user/sip" },
+    { name: "Dashboard",    path: "/dashboard" },
+    { name: "Portfolio",    path: "/portfolio" },
+    { name: "SIP",          path: "/user/sip" },
     { name: "Mutual Funds", path: "/mutual-fund" },
-    { name: "Portfolio", path: "/portfolio" },
     { name: "Transactions", path: "/transactions" },
-    { name: "Reports", path: "/user/profile/report" },
-    { name: "Watchlist", path: "/mutual-fund/watchlist" },
-    { name: "Profile", path: "/user/profile/basic-details" },
-    { name: "Support", path: "/help" },
+    { name: "Watchlist",    path: "/mutual-fund/watchlist" },
+    { name: "Reports",      path: "/user/profile/report" },
+    { name: "Profile",      path: "/user/profile/basic-details" },
+    { name: "Support",      path: "/help" },
   ];
+
+  const isActive = (item) => {
+    const p = location.pathname;
+    if (item.path === "/dashboard") return p === "/dashboard";
+    if (item.path === "/mutual-fund/watchlist") return p === "/mutual-fund/watchlist";
+    if (item.path === "/mutual-fund") return p.startsWith("/mutual-fund") && p !== "/mutual-fund/watchlist";
+    if (item.path === "/user/profile/report") return p === "/user/profile/report";
+    if (item.path === "/user/profile/basic-details") return p.startsWith("/user/profile") && p !== "/user/profile/report";
+    if (item.path === "/help") return p === "/help";
+    return p === item.path;
+  };
+
+  const SidebarContent = () => (
+    <>
+      <Link to="/" className="mf-sidebar-brand">
+        <img src={logoImg} alt="KfinFund logo" className="mf-sidebar-logo" />
+        <span className="mf-sidebar-title">KfinFund</span>
+      </Link>
+
+      <nav className="mf-sidebar-menu">
+        {menuItems.map((item) => (
+          <Link
+            key={item.name}
+            to={item.path}
+            className={`mf-sidebar-item ${isActive(item) ? "is-active" : ""}`}
+          >
+            <span>{item.name}</span>
+          </Link>
+        ))}
+        <button
+          type="button"
+          onClick={handleLogout}
+          className="mf-sidebar-item"
+          style={{ background: "none", border: "none", cursor: "pointer", width: "100%", textAlign: "left", fontFamily: "inherit", fontSize: "inherit", padding: "12px 16px" }}
+        >
+          <span style={{ color: "#EF4444" }}>Logout</span>
+        </button>
+      </nav>
+
+      <div className="mf-sidebar-upgrade">
+        <div className="mf-sidebar-upgrade-title">Upgrade to Premium</div>
+        <div className="mf-sidebar-upgrade-text">Unlock advanced insights and specialized tools</div>
+        <button type="button" className="mf-sidebar-upgrade-btn" onClick={() => alert("Premium feature coming soon!")}>
+          Upgrade Now
+        </button>
+      </div>
+    </>
+  );
 
   return (
     <div className="mf-layout">
-      {/* Sidebar Navigation */}
-      <aside className="mf-sidebar">
-        <Link to="/" className="mf-sidebar-brand">
-          <img src={logoImg} alt="KfinFund logo" className="mf-sidebar-logo" />
-          <span className="mf-sidebar-title">KfinFund</span>
-        </Link>
 
-        <nav className="mf-sidebar-menu">
-          {menuItems.map((item) => {
-            const isActive = location.pathname === item.path ||
-              (item.path !== "/dashboard" && location.pathname.startsWith(item.path));
-            return (
-              <Link
-                key={item.name}
-                to={item.path}
-                className={`mf-sidebar-item ${isActive ? "is-active" : ""}`}
-              >
-                <span>{item.name}</span>
-              </Link>
-            );
-          })}
-          {/* Logout */}
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="mf-sidebar-item"
-            style={{ background: "none", border: "none", cursor: "pointer", width: "100%", textAlign: "left", color: "#EF4444", fontFamily: "inherit", fontSize: "inherit" }}
-          >
-            <span>Logout</span>
-          </button>
-        </nav>
-
-        {/* Upgrade Card */}
-        <div className="mf-sidebar-upgrade">
-          <div className="mf-sidebar-upgrade-title">Upgrade to Premium</div>
-          <div className="mf-sidebar-upgrade-text">
-            Unlock advanced insights and specialized tools
-          </div>
-          <button type="button" className="mf-sidebar-upgrade-btn">
-            Upgrade Now
-          </button>
-        </div>
+      {/* Desktop sidebar — always visible */}
+      <aside className="mf-sidebar mf-sidebar-desktop" style={{ overflowY: "auto" }}>
+        <SidebarContent />
       </aside>
 
-      {/* Main content wrapper */}
-      <div className="mf-main-content">
-        {/* Top Header */}
+      {/* Mobile overlay backdrop */}
+      {sidebarOpen && (
+        <div
+          onClick={() => setSidebarOpen(false)}
+          style={{
+            position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)",
+            zIndex: 200, display: "none",
+          }}
+          className="mf-sidebar-backdrop"
+        />
+      )}
+
+      {/* Mobile sidebar — slides in */}
+      <aside
+        className="mf-sidebar mf-sidebar-mobile"
+        style={{
+          position: "fixed", top: 0, left: 0, height: "100vh",
+          zIndex: 201, overflowY: "auto",
+          transform: sidebarOpen ? "translateX(0)" : "translateX(-100%)",
+          transition: "transform 0.3s ease",
+        }}
+      >
+        {/* Close button inside mobile sidebar */}
+        <button
+          onClick={() => setSidebarOpen(false)}
+          style={{
+            position: "absolute", top: "16px", right: "16px",
+            background: "rgba(255,255,255,0.1)", border: "none",
+            borderRadius: "50%", width: "32px", height: "32px",
+            color: "#fff", fontSize: "18px", cursor: "pointer",
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}
+        >✕</button>
+        <SidebarContent />
+      </aside>
+
+      {/* Main content */}
+      <div className="mf-main-content" style={{ minHeight: "100vh", overflowY: "auto" }}>
         <header className="mf-top-header">
+
+          {/* Hamburger — mobile only */}
+          <button
+            className="mf-hamburger"
+            onClick={() => setSidebarOpen(true)}
+            style={{
+              display: "none",
+              background: "none", border: "none",
+              cursor: "pointer", padding: "8px",
+              flexDirection: "column", gap: "5px",
+              marginRight: "12px",
+            }}
+          >
+            <span style={{ display: "block", width: "22px", height: "2px", background: "#374151", borderRadius: "2px" }} />
+            <span style={{ display: "block", width: "22px", height: "2px", background: "#374151", borderRadius: "2px" }} />
+            <span style={{ display: "block", width: "22px", height: "2px", background: "#374151", borderRadius: "2px" }} />
+          </button>
+
           <h1 className="mf-header-title">{pageTitle}</h1>
 
           <div className="mf-header-actions">
-            {/* Bell Icon */}
-            <div className="mf-header-bell" title="Notifications">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="mf-bell-icon"
-              >
-                <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
-                <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
-              </svg>
-              <span className="mf-header-bell-badge" />
-            </div>
-
-            {/* Profile Avatar and Name */}
             <div
               className="mf-header-profile"
               style={{ cursor: "pointer" }}
@@ -125,7 +171,6 @@ export default function DashboardLayout({ children, pageTitle = "Dashboard" }) {
           </div>
         </header>
 
-        {/* Children content area */}
         <main className="mf-workspace">{children}</main>
       </div>
     </div>

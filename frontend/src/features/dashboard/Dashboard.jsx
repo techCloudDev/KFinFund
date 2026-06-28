@@ -1,391 +1,399 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import Sidebar from "../shared/Sidebar";
+import DashboardLayout from "../mutual-fund/component/DashboardLayout";
 import "./dashboard.css";
 
 const TRANSACTION_SERVICE_URL = import.meta.env.VITE_TRANSACTION_API || "http://localhost:4003";
 const SIP_SERVICE_URL = import.meta.env.VITE_SIP_API || "http://localhost:4004";
+const KYC_SERVICE_URL = import.meta.env.VITE_KYC_API || "http://localhost:4002";
 
 const getTokenData = () => {
   const token = localStorage.getItem("token");
   if (!token) return null;
-  try {
-    const payload = JSON.parse(atob(token.split(".")[1]));
-    return payload;
-  } catch {
-    return null;
-  }
+  try { return JSON.parse(atob(token.split(".")[1])); }
+  catch { return null; }
 };
+
+const classifyFund = (name = "") => {
+  const n = name.toLowerCase();
+  if (n.includes("liquid") || n.includes("debt") || n.includes("bond") || n.includes("gilt") || n.includes("income") || n.includes("money market")) return "Debt";
+  if (n.includes("hybrid") || n.includes("balanced") || n.includes("arbitrage") || n.includes("multi asset")) return "Hybrid";
+  return "Equity";
+};
+
+const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+const SHORT_MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const DAY_LABELS = ["S","M","T","W","T","F","S"];
+
+// Catchy investment taglines — rotate every login
+const TAGLINES = [
+  "Small steps today, big wealth tomorrow. 🌱",
+  "Your money is working while you sleep. 💰",
+  "Every rupee invested is a future secured. 🔐",
+  "Wealth is built quietly, one SIP at a time. 📈",
+  "The best time to invest was yesterday. The next best is now. ⏳",
+  "Markets fluctuate, disciplined investors profit. 💎",
+  "Compounding is the eighth wonder of the world. 🚀",
+];
+
+function MiniCalendar({ label, value, onChange }) {
+  const today = new Date();
+  const [month, setMonth] = useState(value ? new Date(value).getMonth() : today.getMonth());
+  const [year, setYear] = useState(value ? new Date(value).getFullYear() : today.getFullYear());
+
+  const firstDay = new Date(year, month, 1).getDay();
+  const totalDays = new Date(year, month + 1, 0).getDate();
+  const cells = [...Array(firstDay).fill(null), ...Array.from({ length: totalDays }, (_, i) => i + 1)];
+
+  const selectedDay = value ? new Date(value).getDate() : null;
+  const selectedM = value ? new Date(value).getMonth() : null;
+  const selectedY = value ? new Date(value).getFullYear() : null;
+
+  const prevMonth = () => { if (month === 0) { setMonth(11); setYear(y => y - 1); } else setMonth(m => m - 1); };
+  const nextMonth = () => { if (month === 11) { setMonth(0); setYear(y => y + 1); } else setMonth(m => m + 1); };
+
+  return (
+    <div style={{ flex: 1, minWidth: "220px" }}>
+      <div style={{ fontSize: "12px", fontWeight: "700", color: "#6C3AED", marginBottom: "8px", textTransform: "uppercase" }}>{label}</div>
+      <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: "10px", padding: "14px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+          <button onClick={prevMonth} style={{ border: "none", background: "none", cursor: "pointer", fontSize: "18px", color: "#6b7280" }}>‹</button>
+          <span style={{ fontSize: "14px", fontWeight: "600", color: "#111827" }}>{MONTH_NAMES[month]} {year}</span>
+          <button onClick={nextMonth} style={{ border: "none", background: "none", cursor: "pointer", fontSize: "18px", color: "#6b7280" }}>›</button>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", textAlign: "center", marginBottom: "6px" }}>
+          {DAY_LABELS.map((d, i) => <span key={i} style={{ fontSize: "11px", color: "#9ca3af", fontWeight: "600" }}>{d}</span>)}
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: "2px" }}>
+          {cells.map((day, i) => {
+            const isSelected = day && day === selectedDay && month === selectedM && year === selectedY;
+            return (
+              <button key={i} disabled={!day}
+                onClick={() => day && onChange(new Date(year, month, day).toISOString().split("T")[0])}
+                style={{ width: "30px", height: "30px", border: "none", borderRadius: "50%", background: isSelected ? "#6C3AED" : "transparent", color: isSelected ? "#fff" : day ? "#374151" : "transparent", fontSize: "13px", cursor: day ? "pointer" : "default", fontWeight: isSelected ? "700" : "400" }}
+              >{day}</button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// KYC Banner component
+function KycBanner({ kycStatus, navigate }) {
+  if (kycStatus === "APPROVED" || kycStatus === null) return null;
+
+  if (kycStatus === "NOT_SUBMITTED") return (
+    <div onClick={() => navigate("/user/profile/kyc")} style={{
+      display: "flex", alignItems: "center", justifyContent: "space-between",
+      background: "linear-gradient(135deg, #fff7ed, #fef3c7)",
+      border: "1.5px solid #f59e0b", borderRadius: "12px",
+      padding: "14px 20px", marginBottom: "20px", cursor: "pointer",
+      gap: "12px", flexWrap: "wrap",
+    }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+        <div style={{ width: "40px", height: "40px", borderRadius: "50%", background: "#f59e0b", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "18px", flexShrink: 0 }}>⚠️</div>
+        <div>
+          <div style={{ fontSize: "15px", fontWeight: "700", color: "#92400e" }}>KYC Verification Required</div>
+          <div style={{ fontSize: "13px", color: "#a16207", marginTop: "2px" }}>Complete your KYC to start investing in mutual funds.</div>
+        </div>
+      </div>
+      <span style={{ background: "#f59e0b", color: "#fff", padding: "8px 18px", borderRadius: "8px", fontSize: "13px", fontWeight: "700", whiteSpace: "nowrap" }}>
+        Complete KYC →
+      </span>
+    </div>
+  );
+
+  if (kycStatus === "PENDING") return (
+    <div style={{
+      display: "flex", alignItems: "center", gap: "12px",
+      background: "linear-gradient(135deg, #eff6ff, #dbeafe)",
+      border: "1.5px solid #93c5fd", borderRadius: "12px",
+      padding: "14px 20px", marginBottom: "20px", flexWrap: "wrap",
+    }}>
+      <div style={{ width: "40px", height: "40px", borderRadius: "50%", background: "#3b82f6", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "18px", flexShrink: 0 }}>⏳</div>
+      <div>
+        <div style={{ fontSize: "15px", fontWeight: "700", color: "#1e40af" }}>KYC Under Review</div>
+        <div style={{ fontSize: "13px", color: "#1d4ed8", marginTop: "2px" }}>Your documents are being verified. This typically takes 1–2 working days.</div>
+      </div>
+    </div>
+  );
+
+  return null;
+}
 
 function Dashboard() {
   const navigate = useNavigate();
-  const [showNotifications, setShowNotifications] = useState(false);
-  const [showTransactionPanel, setShowTransactionPanel] = useState(false);
-  const [selectedMonth, setSelectedMonth] = useState("thisMonth");
-  const [showCustomCalendar, setShowCustomCalendar] = useState(false);
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-  const [selectedCalendarMonth, setSelectedCalendarMonth] = useState(new Date().getMonth());
-  const [selectedDate, setSelectedDate] = useState(null);
-  const [portfolio, setPortfolio] = useState(null);
+  const [filter, setFilter] = useState("thisMonth");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
   const [transactions, setTransactions] = useState([]);
   const [sips, setSips] = useState([]);
+  const [portfolio, setPortfolio] = useState(null);
   const [userName, setUserName] = useState("User");
-  const [notifications, setNotifications] = useState([]);
+  const [kycStatus, setKycStatus] = useState(null);
+  const [tagline] = useState(() => TAGLINES[Math.floor(Math.random() * TAGLINES.length)]);
 
-  const monthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"];
-  const days = ["S","M","T","W","T","F","S"];
+  const formatCurrency = (n) => `₹${Number(n || 0).toLocaleString("en-IN")}`;
 
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) { navigate("/login"); return; }
-    const tokenData = getTokenData();
-    if (tokenData?.email) setUserName(tokenData.email.split("@")[0]);
+    const td = getTokenData();
+    if (td?.email) setUserName(td.email.split("@")[0]);
   }, [navigate]);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) return;
 
+    // Fetch KYC status
+    fetch(`${KYC_SERVICE_URL}/api/kyc/status`, {
+      headers: { Authorization: `Bearer ${token}` }
+    }).then(r => r.json()).then(d => setKycStatus(d.status || "NOT_SUBMITTED")).catch(() => setKycStatus("NOT_SUBMITTED"));
+
     fetch(`${TRANSACTION_SERVICE_URL}/api/transactions/portfolio`, {
       headers: { Authorization: `Bearer ${token}` }
-    })
-      .then(res => res.json())
-      .then(data => {
-        setPortfolio(data);
-        // Generate real notifications based on portfolio
-        const notifs = [];
-        if (data?.totalInvestment > 0) {
-          notifs.push({ icon: "📈", text: `Your portfolio value is ₹${Number(data.totalInvestment * 1.19).toLocaleString("en-IN")}` });
-        }
-        setNotifications(notifs);
-      })
-      .catch(() => setPortfolio(null));
+    }).then(r => r.json()).then(setPortfolio).catch(() => setPortfolio(null));
 
     fetch(`${TRANSACTION_SERVICE_URL}/api/transactions/history`, {
       headers: { Authorization: `Bearer ${token}` }
-    })
-      .then(res => res.json())
-      .then(data => {
-        const txns = data.transactions || [];
-        setTransactions(txns);
-        if (txns.length > 0) {
-          setNotifications(prev => [...prev, { icon: "✅", text: `You have ${txns.length} transaction${txns.length > 1 ? "s" : ""}` }]);
-        }
-      })
-      .catch(() => setTransactions([]));
+    }).then(r => r.json()).then(d => setTransactions(d.transactions || [])).catch(() => setTransactions([]));
 
     fetch(`${SIP_SERVICE_URL}/api/sips/my-sips`, {
       headers: { Authorization: `Bearer ${token}` }
-    })
-      .then(res => res.json())
-      .then(data => {
-        const sipList = Array.isArray(data) ? data : [];
-        setSips(sipList);
-        const activeSipList = sipList.filter(s => s.status === "ACTIVE");
-        if (activeSipList.length > 0) {
-          setNotifications(prev => [...prev, { icon: "📅", text: `${activeSipList.length} active SIP${activeSipList.length > 1 ? "s" : ""} running` }]);
-        }
-      })
-      .catch(() => setSips([]));
+    }).then(r => r.json()).then(d => setSips(d.sips || (Array.isArray(d) ? d : []))).catch
+(() => setSips([]));
   }, []);
 
-  const getCalendarDays = () => {
-    const firstDay = new Date(selectedYear, selectedCalendarMonth, 1).getDay();
-    const totalDays = new Date(selectedYear, selectedCalendarMonth + 1, 0).getDate();
-    return [...Array(firstDay).fill(null), ...Array.from({ length: totalDays }, (_, i) => i + 1)];
+  const filteredTxns = useMemo(() => {
+    const now = new Date();
+    return transactions.filter(tx => {
+      const d = new Date(tx.transaction_date);
+      if (filter === "thisMonth") return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+      if (filter === "lastMonth") {
+        const lm = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        return d.getMonth() === lm.getMonth() && d.getFullYear() === lm.getFullYear();
+      }
+      if (filter === "custom" && fromDate) {
+        const from = new Date(fromDate);
+        const to = toDate ? new Date(toDate) : new Date(fromDate);
+        to.setHours(23, 59, 59);
+        return d >= from && d <= to;
+      }
+      return true;
+    });
+  }, [transactions, filter, fromDate, toDate]);
+
+  const chartPoints = useMemo(() => {
+    if (filteredTxns.length === 0) return [];
+    const sorted = [...filteredTxns].sort((a, b) => new Date(a.transaction_date) - new Date(b.transaction_date));
+    let cumulative = 0;
+    return sorted.map(tx => {
+      cumulative += Number(tx.amount || 0);
+      const d = new Date(tx.transaction_date);
+      return { label: `${d.getDate()} ${SHORT_MONTHS[d.getMonth()]}`, value: cumulative };
+    });
+  }, [filteredTxns]);
+
+  const allocation = useMemo(() => {
+    if (transactions.length === 0) return null;
+    const map = { Equity: 0, Debt: 0, Hybrid: 0 };
+    transactions.forEach(tx => { if (tx.transaction_type === "BUY") map[classifyFund(tx.fund_id)] += Number(tx.amount || 0); });
+    const total = Object.values(map).reduce((a, b) => a + b, 0);
+    if (total === 0) return null;
+    return Object.entries(map).filter(([, v]) => v > 0).map(([k, v]) => ({ name: k, pct: Math.round((v / total) * 100), color: k === "Equity" ? "#5b21d9" : k === "Debt" ? "#1e90ff" : "#ffb703" }));
+  }, [transactions]);
+
+  const chartWidth = Math.max(chartPoints.length * 90, 400);
+  const maxVal = chartPoints.length > 0 ? Math.max(...chartPoints.map(p => p.value)) * 1.1 : 1;
+  const minY = 28, maxY = 175;
+
+  const scaled = chartPoints.map((pt, i) => ({ ...pt, x: i * 90 + 45, y: maxY - (pt.value / maxVal) * (maxY - minY) }));
+  const polyPoints = scaled.map(p => `${p.x},${p.y}`).join(" ");
+  const areaPoints = scaled.length > 0 ? `${polyPoints} ${scaled[scaled.length - 1].x},190 ${scaled[0].x},190` : "";
+  const formatVal = (v) => v >= 100000 ? `${(v / 100000).toFixed(1)}L` : v >= 1000 ? `${Math.round(v / 1000)}K` : `${Math.round(v)}`;
+
+  const donutParts = useMemo(() => {
+    if (!allocation) return [];
+    let cumDeg = 0;
+    return allocation.map(a => { const deg = (a.pct / 100) * 360; const part = { ...a, start: cumDeg, end: cumDeg + deg }; cumDeg += deg; return part; });
+  }, [allocation]);
+
+  const describeArc = (cx, cy, r, startDeg, endDeg) => {
+    const toRad = d => (d - 90) * Math.PI / 180;
+    const x1 = cx + r * Math.cos(toRad(startDeg)); const y1 = cy + r * Math.sin(toRad(startDeg));
+    const x2 = cx + r * Math.cos(toRad(endDeg)); const y2 = cy + r * Math.sin(toRad(endDeg));
+    return `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${endDeg - startDeg > 180 ? 1 : 0} 1 ${x2} ${y2} Z`;
   };
-
-  const chartData = {
-    thisMonth: [
-      { label: "May 01", value: 25000 }, { label: "May 05", value: 60000 },
-      { label: "May 09", value: 110000 }, { label: "May 13", value: 125000 },
-      { label: "May 17", value: 145000 }, { label: "May 21", value: 160000 },
-      { label: "May 25", value: 182000 }, { label: "May 31", value: 210000 },
-    ],
-    lastMonth: [
-      { label: "Apr 01", value: 18000 }, { label: "Apr 05", value: 29000 },
-      { label: "Apr 09", value: 68000 }, { label: "Apr 13", value: 82000 },
-      { label: "Apr 17", value: 88000 }, { label: "Apr 21", value: 99000 },
-      { label: "Apr 25", value: 132000 }, { label: "Apr 30", value: 158000 },
-    ],
-  };
-
-  const hour = new Date().getHours();
-  const greeting = hour < 12 ? "Good Morning" : hour < 17 ? "Good Afternoon" : "Good Evening";
-
-  const currentChart = selectedMonth === "custom" ? chartData.thisMonth : chartData[selectedMonth];
-  const chartWidth = currentChart.length * 90;
-  const maxValue = 220000;
-  const minY = 28;
-  const maxY = 175;
-
-  const scaledPoints = currentChart.map((item, index) => ({
-    ...item,
-    x: index * 90 + 45,
-    y: maxY - (item.value / maxValue) * (maxY - minY),
-  }));
-
-  const chartPoints = scaledPoints.map(p => `${p.x},${p.y}`).join(" ");
-  const firstPoint = scaledPoints[0];
-  const lastPoint = scaledPoints[scaledPoints.length - 1];
-  const chartArea = `${chartPoints} ${lastPoint.x},190 ${firstPoint.x},190`;
-
-  const formatChartValue = (value) =>
-    value >= 100000 ? `${(value / 100000).toFixed(1)}L` : `${Math.round(value / 1000)}K`;
-
-  const formatCurrency = (amount) =>
-    `₹${Number(amount || 0).toLocaleString("en-IN")}`;
 
   const totalInvestment = portfolio?.totalInvestment || 0;
   const currentValue = totalInvestment * 1.19;
   const totalGain = currentValue - totalInvestment;
   const gainPercent = totalInvestment > 0 ? ((totalGain / totalInvestment) * 100).toFixed(2) : "0.00";
-
   const activeSips = sips.filter(s => s.status === "ACTIVE");
   const nextSip = activeSips[0];
 
   return (
-    <div className="dashboard-layout">
-      <Sidebar />
+    <DashboardLayout pageTitle="Dashboard">
 
-      <main className="dashboard-content" style={{ overflowY: "auto" }}>
-        <div className="dashboard-header">
-          <div>
-            <h1>{greeting}, {userName}! 👋</h1>
-            <p>Here's what's happening with your investments today.</p>
+      {/* Greeting */}
+      <div style={{ marginBottom: "16px" }}>
+        <h1 style={{ fontSize: "24px", color: "#111827", margin: "0 0 4px" }}>
+          Hey, {userName}! 👋
+        </h1>
+        <p style={{ color: "#6b7280", fontSize: "14px", margin: 0, fontStyle: "italic" }}>
+          {tagline}
+        </p>
+      </div>
+
+      {/* KYC Banner */}
+      <KycBanner kycStatus={kycStatus} navigate={navigate} />
+
+      {/* Stats */}
+      <div className="stats-grid" style={{ marginBottom: "20px" }}>
+        {[
+          { label: "Total Investment", value: formatCurrency(totalInvestment) },
+          { label: "Current Value", value: formatCurrency(totalInvestment > 0 ? currentValue : 0) },
+          { label: "Total Gain", value: formatCurrency(totalInvestment > 0 ? totalGain : 0), sub: `(+${gainPercent}%)`, green: true },
+        ].map((c, i) => (
+          <div key={i} className="stat-card">
+            <p>{c.label}</p>
+            <h2 className={c.green ? "green" : ""}>{c.value}</h2>
+            {c.sub && <h4 className="green">{c.sub}</h4>}
+          </div>
+        ))}
+      </div>
+
+      {/* Chart + Allocation */}
+      <div className="main-grid" style={{ marginBottom: "20px" }}>
+        <div className="overview-card" style={{ position: "relative" }}>
+          <div className="section-head" style={{ flexWrap: "wrap", gap: "8px" }}>
+            <h3>Portfolio Overview</h3>
+            <select value={filter} onChange={e => { setFilter(e.target.value); if (e.target.value !== "custom") { setFromDate(""); setToDate(""); } }}>
+              <option value="thisMonth">This Month</option>
+              <option value="lastMonth">Last Month</option>
+              <option value="custom">Custom Range</option>
+            </select>
           </div>
 
-          <div className="user-box">
-            {/* Bell with red dot if notifications exist */}
-            <div style={{ position: "relative" }}>
-              <button className="bell-btn" onClick={() => setShowNotifications(!showNotifications)}>🔔</button>
-              {notifications.length > 0 && (
-                <span style={{
-                  position: "absolute", top: "0", right: "0",
-                  width: "8px", height: "8px", borderRadius: "50%",
-                  background: "#EF4444", border: "1.5px solid white"
-                }} />
-              )}
-            </div>
-
-            {showNotifications && (
-              <div className="notification-dropdown">
-                <h4>Notifications</h4>
-                {notifications.length > 0
-                  ? notifications.map((n, i) => <p key={i}>{n.icon} {n.text}</p>)
-                  : <p style={{ color: "#9ca3af", fontSize: "13px" }}>No new notifications</p>
-                }
+          {filter === "custom" && (
+            <div style={{ marginTop: "12px", marginBottom: "8px" }}>
+              <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+                <MiniCalendar label="From Date" value={fromDate} onChange={v => { setFromDate(v); if (!toDate) setToDate(v); }} />
+                <MiniCalendar label="To Date" value={toDate} onChange={v => setToDate(v < fromDate ? fromDate : v)} />
               </div>
-            )}
-
-            {/* Profile — removed ⌄ symbol */}
-            <div className="profile-click" onClick={() => navigate("/user/profile/basic-details")}>
-              <div className="user-avatar">{userName[0]?.toUpperCase()}</div>
-              <span>{userName}</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="stats-grid">
-          <div className="stat-card">
-            <p>Total Investment</p>
-            <h2>{totalInvestment > 0 ? formatCurrency(totalInvestment) : "₹0"}</h2>
-          </div>
-          <div className="stat-card">
-            <p>Current Value</p>
-            <h2>{totalInvestment > 0 ? formatCurrency(currentValue) : "₹0"}</h2>
-          </div>
-          <div className="stat-card">
-            <p>Total Gain</p>
-            <h2 className="green">{totalInvestment > 0 ? formatCurrency(totalGain) : "₹0"}</h2>
-            <h4 className="green">(+{gainPercent}%)</h4>
-          </div>
-        </div>
-
-        <div className="main-grid">
-          <div className="overview-card">
-            <div className="section-head">
-              <h3>Portfolio Overview</h3>
-              <select
-                value={selectedMonth}
-                onChange={(e) => {
-                  setSelectedMonth(e.target.value);
-                  setShowCustomCalendar(e.target.value === "custom");
-                  if (e.target.value !== "custom") setSelectedDate(null);
-                }}
-              >
-                <option value="thisMonth">This Month</option>
-                <option value="lastMonth">Last Month</option>
-                <option value="custom">Custom</option>
-              </select>
-
-              {showCustomCalendar && (
-                <div className="custom-calendar">
-                  <div className="calendar-top">
-                    <div className="calendar-title">
-                      {monthNames[selectedCalendarMonth]} {selectedYear}
-                    </div>
-                    <div className="calendar-arrows">
-                      <button onClick={() => {
-                        if (selectedCalendarMonth === 0) { setSelectedCalendarMonth(11); setSelectedYear(y => y - 1); }
-                        else setSelectedCalendarMonth(m => m - 1);
-                      }}>‹</button>
-                      <button onClick={() => {
-                        if (selectedCalendarMonth === 11) { setSelectedCalendarMonth(0); setSelectedYear(y => y + 1); }
-                        else setSelectedCalendarMonth(m => m + 1);
-                      }}>›</button>
-                    </div>
-                  </div>
-                  <div className="calendar-days">{days.map((d, i) => <span key={i}>{d}</span>)}</div>
-                  <div className="calendar-grid">
-                    {getCalendarDays().map((day, i) => (
-                      <button
-                        key={i}
-                        className={selectedDate === day ? "selected-date" : ""}
-                        disabled={!day}
-                        onClick={() => {
-                          setSelectedDate(day);
-                          setShowCustomCalendar(false); // Close calendar on date select
-                        }}
-                      >
-                        {day}
-                      </button>
-                    ))}
-                  </div>
-                  {selectedDate && (
-                    <div style={{ textAlign: "center", padding: "8px", fontSize: "12px", color: "#6C3AED", fontWeight: 600 }}>
-                      Selected: {selectedDate} {monthNames[selectedCalendarMonth]} {selectedYear}
-                    </div>
-                  )}
+              {fromDate && (
+                <div style={{ marginTop: "10px", padding: "8px 12px", background: "#f3f0ff", borderRadius: "8px", fontSize: "13px", color: "#6C3AED", fontWeight: "600" }}>
+                  📅 {fromDate === toDate || !toDate ? `Single day: ${fromDate}` : `Range: ${fromDate} → ${toDate}`}
                 </div>
               )}
             </div>
+          )}
 
-            <div className="chart-area">
-              <div className="y-labels">
-                <span>2L</span><span>1.5L</span><span>1L</span><span>50K</span><span>0K</span>
+          <div className="chart-area" style={{ marginTop: "12px" }}>
+            {chartPoints.length === 0 ? (
+              <div style={{ height: "200px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "#9ca3af" }}>
+                <div style={{ fontSize: "36px", marginBottom: "8px" }}>📈</div>
+                <div style={{ fontSize: "14px", fontWeight: "500" }}>No transactions in this period</div>
+                <div style={{ fontSize: "12px", marginTop: "4px" }}>Invest in a mutual fund to see your chart</div>
               </div>
-              <div className="chart-scroll">
-                <svg viewBox={`0 0 ${chartWidth} 230`} className="line-chart-scroll" style={{ width: `${chartWidth}px` }}>
-                  <defs>
-                    <linearGradient id="chartFill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#6c3aed" stopOpacity="0.22" />
-                      <stop offset="100%" stopColor="#6c3aed" stopOpacity="0" />
-                    </linearGradient>
-                  </defs>
-                  <polygon points={chartArea} fill="url(#chartFill)" />
-                  <polyline points={chartPoints} fill="none" stroke="#5b21d9" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
-                  {scaledPoints.map((point, i) => (
-                    <g key={i}>
-                      <circle cx={point.x} cy={point.y} r="5" fill="#5b21d9" stroke="white" strokeWidth="2" />
-                      <text x={point.x} y={point.y - 12} textAnchor="middle" className="chart-value-label">{formatChartValue(point.value)}</text>
-                      <text x={point.x} y="220" textAnchor="middle" className="chart-date-label">{point.label}</text>
-                    </g>
-                  ))}
-                </svg>
-              </div>
-            </div>
-          </div>
-
-          <div className="allocation-card">
-            <h3>Asset Allocation</h3>
-            <div className="donut"></div>
-            <div className="allocation-list">
-              <p><span><i className="dot purple"></i>Equity</span><b>60%</b></p>
-              <p><span><i className="dot blue"></i>Debt</span><b>25%</b></p>
-              <p><span><i className="dot yellow"></i>Hybrid</span><b>15%</b></p>
-            </div>
+            ) : (
+              <>
+                <div className="y-labels">
+                  {[maxVal, maxVal * 0.75, maxVal * 0.5, maxVal * 0.25, 0].map((v, i) => <span key={i}>{formatVal(v)}</span>)}
+                </div>
+                <div className="chart-scroll">
+                  <svg viewBox={`0 0 ${chartWidth} 230`} className="line-chart-scroll" style={{ width: `${chartWidth}px` }}>
+                    <defs>
+                      <linearGradient id="chartFill" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#6c3aed" stopOpacity="0.22" />
+                        <stop offset="100%" stopColor="#6c3aed" stopOpacity="0" />
+                      </linearGradient>
+                    </defs>
+                    <polygon points={areaPoints} fill="url(#chartFill)" />
+                    <polyline points={polyPoints} fill="none" stroke="#5b21d9" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+                    {scaled.map((p, i) => (
+                      <g key={i}>
+                        <circle cx={p.x} cy={p.y} r="5" fill="#5b21d9" stroke="white" strokeWidth="2" />
+                        <text x={p.x} y={p.y - 12} textAnchor="middle" className="chart-value-label">{formatVal(p.value)}</text>
+                        <text x={p.x} y="220" textAnchor="middle" className="chart-date-label">{p.label}</text>
+                      </g>
+                    ))}
+                  </svg>
+                </div>
+              </>
+            )}
           </div>
         </div>
 
-        <div className="bottom-grid">
-          <div className="small-card sip-card">
-            <div>
-              <h3>My SIPs</h3>
-              <p>Active SIPs</p>
-              <h2>{activeSips.length}</h2>
+        <div className="allocation-card">
+          <h3>Asset Allocation</h3>
+          {!allocation ? (
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "#9ca3af", textAlign: "center", padding: "20px" }}>
+              <div style={{ fontSize: "32px", marginBottom: "8px" }}>🥧</div>
+              <div style={{ fontSize: "13px", fontWeight: "500" }}>No investment data yet</div>
+              <div style={{ fontSize: "12px", marginTop: "4px" }}>Your allocation appears after your first investment</div>
             </div>
-            <div className="icon-circle purple-icon">📅</div>
-          </div>
+          ) : (
+            <>
+              <svg viewBox="0 0 160 160" width="150" height="150" style={{ display: "block", margin: "8px auto 12px" }}>
+                {donutParts.map((part, i) => <path key={i} d={describeArc(80, 80, 60, part.start, part.end)} fill={part.color} />)}
+                <circle cx="80" cy="80" r="36" fill="white" />
+              </svg>
+              <div className="allocation-list">
+                {allocation.map((a, i) => (
+                  <p key={i}><span><i className="dot" style={{ background: a.color }}></i>{a.name}</span><b>{a.pct}%</b></p>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
 
-          <div className="small-card sip-card">
-            <div>
-              <h3>Upcoming SIP</h3>
-              {nextSip ? (
-                <>
-                  <p>{nextSip.fund_name}</p>
-                  <span>{new Date(nextSip.start_date).toLocaleDateString("en-IN")}</span>
-                  <h2>- {formatCurrency(nextSip.amount)}</h2>
-                </>
-              ) : (
-                <>
-                  <p style={{ color: "#9ca3af", fontSize: "13px" }}>No active SIPs</p>
-                  <button onClick={() => navigate("/mutual-fund")} style={{ marginTop: "8px", background: "#6C3AED", color: "#fff", border: "none", borderRadius: "6px", padding: "6px 12px", fontSize: "12px", cursor: "pointer" }}>
-                    Start a SIP
-                  </button>
-                </>
+      {/* Bottom cards */}
+      <div className="bottom-grid" style={{ marginBottom: "32px" }}>
+        <div className="small-card sip-card">
+          <div><h3>My SIPs</h3><p>Active SIPs</p><h2>{activeSips.length}</h2></div>
+          <div className="icon-circle purple-icon">📅</div>
+        </div>
+
+        <div className="small-card sip-card">
+          <div>
+            <h3>Upcoming SIP</h3>
+            {nextSip ? (
+              <><p>{nextSip.fund_name}</p><span style={{ fontSize: "12px", color: "#6b7280" }}>{new Date(nextSip.start_date).toLocaleDateString("en-IN")}</span><h2>- {formatCurrency(nextSip.amount)}</h2></>
+            ) : (
+              <><p style={{ color: "#9ca3af", fontSize: "13px" }}>No active SIPs</p><button onClick={() => navigate("/mutual-fund")} style={{ marginTop: "8px", background: "#6C3AED", color: "#fff", border: "none", borderRadius: "6px", padding: "6px 12px", fontSize: "12px", cursor: "pointer" }}>Start a SIP</button></>
+            )}
+          </div>
+          <div className="icon-circle green-icon">📅</div>
+        </div>
+
+        <div className="small-card transactions-card">
+          <div className="transaction-card-header">
+            <h3>Recent Transactions</h3>
+            <button className="see-all-btn" onClick={() => navigate("/transactions")}>See all →</button>
+          </div>
+          <div className="transaction-list">
+            {transactions.length > 0
+              ? transactions.slice(0, 2).map((item, i) => (
+                <div className="transaction-row" key={i}>
+                  <div><b>{item.fund_id}</b><p>{new Date(item.transaction_date).toLocaleDateString("en-IN")}</p></div>
+                  <span className={item.transaction_type === "BUY" ? "green" : ""}>{item.transaction_type === "BUY" ? "+ " : "- "}{formatCurrency(item.amount)}</span>
+                </div>
+              ))
+              : (
+                <div style={{ textAlign: "center", padding: "16px" }}>
+                  <p style={{ color: "#9ca3af", fontSize: "13px", marginBottom: "8px" }}>No transactions yet</p>
+                  <button onClick={() => navigate("/mutual-fund")} style={{ background: "#6C3AED", color: "#fff", border: "none", borderRadius: "6px", padding: "6px 12px", fontSize: "12px", cursor: "pointer" }}>Start Investing</button>
+                </div>
               )}
-            </div>
-            <div className="icon-circle green-icon">📅</div>
-          </div>
-
-          <div className="small-card transactions-card">
-            <div className="transaction-card-header">
-              <h3>Recent Transactions</h3>
-              <button className="see-all-btn" onClick={() => navigate("/transactions")}>See all →</button>
-            </div>
-            <div className="transaction-list">
-              {transactions.length > 0
-                ? transactions.slice(0, 2).map((item, i) => (
-                    <div className="transaction-row" key={i}>
-                      <div>
-                        <b>{item.fund_id}</b>
-                        <p>{new Date(item.transaction_date).toLocaleDateString("en-IN")}</p>
-                      </div>
-                      <span className={item.transaction_type === "BUY" ? "green" : ""}>
-                        {item.transaction_type === "BUY" ? "+ " : "- "}{formatCurrency(item.amount)}
-                      </span>
-                    </div>
-                  ))
-                : (
-                  <div style={{ textAlign: "center", padding: "16px" }}>
-                    <p style={{ color: "#9ca3af", fontSize: "13px", marginBottom: "8px" }}>No transactions yet</p>
-                    <button onClick={() => navigate("/mutual-fund")} style={{ background: "#6C3AED", color: "#fff", border: "none", borderRadius: "6px", padding: "6px 12px", fontSize: "12px", cursor: "pointer" }}>
-                      Start Investing
-                    </button>
-                  </div>
-                )
-              }
-            </div>
           </div>
         </div>
-
-        {showTransactionPanel && (
-          <div className="transaction-panel">
-            <div className="panel-header">
-              <h3>Transaction History</h3>
-              <button className="close-panel-btn" onClick={() => setShowTransactionPanel(false)}>✕</button>
-            </div>
-            <div className="panel-body">
-              {transactions.length > 0
-                ? transactions.map((item, i) => (
-                    <div className="panel-transaction" key={i}>
-                      <div>
-                        <b>{item.fund_id}</b>
-                        <p>{new Date(item.transaction_date).toLocaleDateString("en-IN")}</p>
-                      </div>
-                      <span className={item.transaction_type === "BUY" ? "green" : ""}>
-                        {item.transaction_type === "BUY" ? "+ " : "- "}{formatCurrency(item.amount)}
-                      </span>
-                    </div>
-                  ))
-                : <p style={{color:"#aaa", textAlign:"center", padding:"20px"}}>No transactions yet</p>
-              }
-            </div>
-          </div>
-        )}
-      </main>
-    </div>
+      </div>
+    </DashboardLayout>
   );
 }
 

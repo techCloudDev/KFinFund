@@ -158,7 +158,14 @@ const categoryParam = searchParams.get("category");
           if (!res.ok) return null;
           const json = await res.json();
           if (!json || !json.data || json.data.length === 0) return null;
-          const currentNav = parseFloat(json.data[0].nav);
+
+// Skip funds with stale NAV data (older than 60 days = discontinued/merged)
+const latestDateParts = json.data[0].date.split("-");
+const latestDate = new Date(latestDateParts[2], latestDateParts[1] - 1, latestDateParts[0]);
+const daysSinceUpdate = (new Date() - latestDate) / (1000 * 60 * 60 * 24);
+if (daysSinceUpdate > 60) return null; // Skip stale funds
+
+const currentNav = parseFloat(json.data[0].nav);
           const nav1Y = getNavYearsAgo(json.data, 1);
           const nav3Y = getNavYearsAgo(json.data, 3);
           const nav5Y = getNavYearsAgo(json.data, 5);
