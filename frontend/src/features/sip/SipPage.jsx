@@ -57,7 +57,11 @@ export default function SipPage() {
       headers: { Authorization: `Bearer ${token}` }
     })
       .then(res => res.json())
-      .then(data => { setSips(Array.isArray(data) ? data.filter(s => s.status === "ACTIVE") : []); setLoading(false); })
+.then(data => {
+  const list = data.sips || (Array.isArray(data) ? data : []);
+  setSips(list.filter(s => s.status === "ACTIVE"));
+  setLoading(false);
+})
       .catch(() => { setSips([]); setLoading(false); });
   }, [navigate]);
 
@@ -66,8 +70,8 @@ export default function SipPage() {
     const token = localStorage.getItem("token");
     setCancellingId(sipId);
     try {
-      const res = await fetch(`${SIP_SERVICE_URL}/api/sips/${sipId}`, {
-        method: "DELETE",
+      const res = await fetch(`${SIP_SERVICE_URL}/api/sips/${sipId}/cancel`, {
+  method: "PATCH",
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
@@ -208,7 +212,7 @@ export default function SipPage() {
         ) : (
           /* ── SIP list ── */
           <>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", flexWrap: "wrap", gap: "8px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
               <h3 style={{ fontSize: "16px", fontWeight: "700", color: "#111827", margin: 0 }}>
                 Active SIPs ({sips.length})
               </h3>

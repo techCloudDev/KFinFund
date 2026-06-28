@@ -20,9 +20,11 @@ function Login() {
   const handleLogin = async () => {
     setError("");
 
-    if (!email) { setError("Please enter your email"); return; }
-    if (!password) { setError("Please enter your password"); return; }
-    if (!captchaToken) { setError("Please complete the captcha verification"); return; }
+    // ✅ Specific validation messages
+    if (!email.trim()) { setError("Please enter your email address."); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setError("Please enter a valid email address."); return; }
+    if (!password) { setError("Please enter your password."); return; }
+    if (!captchaToken) { setError("Please complete the captcha verification."); return; }
 
     setLoading(true);
     try {
@@ -38,12 +40,25 @@ function Login() {
         localStorage.setItem("token", data.token);
         navigate("/dashboard");
       } else {
-        setError(data.error || "Login failed. Please try again.");
+        // ✅ Map backend error codes to friendly messages
+        const status = response.status;
+        if (status === 401) {
+          setError("Incorrect email or password. Please try again.");
+        } else if (status === 404) {
+          setError("No account found with this email. Please register first.");
+        } else if (status === 429) {
+          setError("Too many login attempts. Please wait 15 minutes and try again.");
+        } else if (status === 500) {
+          setError("Server is temporarily unavailable. Please try again in a moment.");
+        } else {
+          setError(data.error || "Login failed. Please try again.");
+        }
         setCaptchaToken("");
         captchaRef.current?.resetCaptcha();
       }
     } catch (err) {
-      setError("Something went wrong. Please try again.");
+      // ✅ Network error
+      setError("Unable to connect to server. Please check your internet connection.");
       setCaptchaToken("");
       captchaRef.current?.resetCaptcha();
     } finally {
@@ -51,37 +66,16 @@ function Login() {
     }
   };
 
-  const handleKeyPress = (e) => {
-    if (e.key === "Enter") handleLogin();
-  };
+  const handleKeyPress = (e) => { if (e.key === "Enter") handleLogin(); };
 
   return (
     <div className="auth-page">
       <div className="auth-card">
 
-        {/* Back Button */}
-        <button
-          onClick={() => navigate("/")}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "6px",
-            background: "none",
-            border: "none",
-            cursor: "pointer",
-            color: "#6C3AED",
-            fontWeight: "600",
-            fontSize: "14px",
-            padding: "0",
-            marginBottom: "20px",
-            fontFamily: "inherit",
-          }}
-        >
-          <FaArrowLeft size={12} />
-          Back to Home
+        <button onClick={() => navigate("/")} style={{ display: "flex", alignItems: "center", gap: "6px", background: "none", border: "none", cursor: "pointer", color: "#6C3AED", fontWeight: "600", fontSize: "14px", padding: "0", marginBottom: "20px", fontFamily: "inherit" }}>
+          <FaArrowLeft size={12} /> Back to Home
         </button>
 
-        {/* Logo */}
         <div className="login-logo-box">
           <img src="/logo.png" alt="KFinFund Logo" className="login-logo" />
         </div>
@@ -89,69 +83,47 @@ function Login() {
         <h2 className="login-title">Welcome Back!</h2>
         <p className="login-subtitle">Login to continue your investment journey</p>
 
-        {/* Email */}
         <div className="form-group">
           <label>Email</label>
-          <input
-            type="email"
-            placeholder="Enter your email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            onKeyPress={handleKeyPress}
-          />
+          <input type="email" placeholder="Enter your email"
+            value={email} onChange={(e) => { setEmail(e.target.value); setError(""); }}
+            onKeyPress={handleKeyPress} />
         </div>
 
-        {/* Password */}
         <div className="form-group">
           <label>Password</label>
           <div className="password-wrapper">
-            <input
-              type={showPassword ? "text" : "password"}
-              placeholder="Enter your password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              onKeyPress={handleKeyPress}
-            />
+            <input type={showPassword ? "text" : "password"} placeholder="Enter your password"
+              value={password} onChange={(e) => { setPassword(e.target.value); setError(""); }}
+              onKeyPress={handleKeyPress} />
             <span className="eye-icon" onClick={() => setShowPassword(!showPassword)}>
               {showPassword ? <FaEyeSlash /> : <FaEye />}
             </span>
           </div>
         </div>
 
-        {/* Forgot Password - right aligned */}
         <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "20px" }}>
-          <Link
-            to="/forgot-password"
-            style={{ color: "#5521d9", fontSize: "13px", fontWeight: "600", textDecoration: "none" }}
-          >
+          <Link to="/forgot-password" style={{ color: "#5521d9", fontSize: "13px", fontWeight: "600", textDecoration: "none" }}>
             Forgot Password?
           </Link>
         </div>
 
-        {/* hCaptcha */}
         <div style={{ marginBottom: "16px" }}>
-          <HCaptcha
-            sitekey={HCAPTCHA_SITE_KEY}
+          <HCaptcha sitekey={HCAPTCHA_SITE_KEY}
             onVerify={(token) => setCaptchaToken(token)}
             onExpire={() => setCaptchaToken("")}
-            ref={captchaRef}
-          />
+            ref={captchaRef} />
         </div>
 
-        {/* Error */}
+        {/* ✅ Styled error box */}
         {error && (
-          <p style={{ color: "red", fontSize: "13px", marginBottom: "10px" }}>
-            {error}
-          </p>
+          <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "8px", padding: "10px 14px", marginBottom: "14px", fontSize: "13px", color: "#dc2626", display: "flex", alignItems: "center", gap: "8px" }}>
+            ⚠️ {error}
+          </div>
         )}
 
-        {/* Login Button */}
-        <button
-          className="login-btn"
-          onClick={handleLogin}
-          disabled={loading}
-          style={{ opacity: loading ? 0.7 : 1 }}
-        >
+        <button className="login-btn" onClick={handleLogin} disabled={loading}
+          style={{ opacity: loading ? 0.7 : 1 }}>
           {loading ? "Logging in..." : "Login"}
         </button>
 

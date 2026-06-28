@@ -7,6 +7,8 @@ import FundChart from "../component/FundChart";
 import "../mutual-fund.css";
 
 const KYC_SERVICE_URL = import.meta.env.VITE_KYC_API || "http://localhost:4002";
+const TRANSACTION_API  = import.meta.env.VITE_TRANSACTION_API || "http://localhost:4003";
+const SIP_API          = import.meta.env.VITE_SIP_API || "http://localhost:4004";
 
 const getAmcLogo = (name = "") => {
   const normalized = name.toLowerCase();
@@ -23,30 +25,74 @@ const getRiskCategory = (schemeName = "") => {
   return "High";
 };
 
+const fetchWithRetry = async (url, attempts = 3) => {
+  for (let i = 1; i <= attempts; i++) {
+    const timeout = i * 6000;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeout);
+    try {
+      const res = await fetch(url, { signal: controller.signal });
+      clearTimeout(timer);
+      return res;
+    } catch (err) {
+      clearTimeout(timer);
+      if (i === attempts) throw err;
+      await new Promise(r => setTimeout(r, 1000 * i));
+    }
+  }
+};
+
 export function MutualFundDetailPage() {
   const { schemeCode } = useParams();
   const navigate = useNavigate();
   const isLoggedIn = !!localStorage.getItem("token");
 
-  const [loading, setLoading] = useState(true);
-  const [fundData, setFundData] = useState(null);
-  const [error, setError] = useState("");
-  const [timeframe, setTimeframe] = useState("1Y");
-  const [investMode, setInvestMode] = useState("sip");
-  const [investAmount, setInvestAmount] = useState("100");
+  const [loading, setLoading]           = useState(true);
+  const [fundData, setFundData]         = useState(null);
+  const [error, setError]               = useState("");
+  const [attemptCount, setAttemptCount] = useState(0);
+  const [timeframe, setTimeframe]       = useState("1Y");
+
+  // invest panel
+  const [investMode, setInvestMode]       = useState("sip");
+  const [investAmount, setInvestAmount]   = useState("100");
   const [investSuccess, setInvestSuccess] = useState(false);
   const [transactionId, setTransactionId] = useState("");
-  const [kycStatus, setKycStatus] = useState(null); // null = loading
+  const [investLoading, setInvestLoading] = useState(false);
 
-  // Fetch KYC status when logged in
+  // redeem
+  const [redeemUnits, setRedeemUnits]     = useState("");
+  const [redeemSuccess, setRedeemSuccess] = useState(false);
+  const [redeemTxId, setRedeemTxId]       = useState("");
+
+  // user state
+  const [kycStatus, setKycStatus]     = useState(null);
+  const [userHolding, setUserHolding] = useState(null); // holding for THIS fund
+
+  // ── KYC status ──
   useEffect(() => {
     if (!isLoggedIn) { setKycStatus("NOT_LOGGED_IN"); return; }
     const token = localStorage.getItem("token");
-    fetch(`${KYC_SERVICE_URL}/api/kyc/status`, {
-      headers: { Authorization: `Bearer ${token}` }
-    }).then(r => r.json()).then(d => setKycStatus(d.status || "NOT_SUBMITTED")).catch(() => setKycStatus("NOT_SUBMITTED"));
+    fetch(`${KYC_SERVICE_URL}/api/kyc/status`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json()).then(d => setKycStatus(d.status || "NOT_SUBMITTED")).catch(() => setKycStatus("NOT_SUBMITTED"));
   }, [isLoggedIn]);
 
+  // ── Portfolio check — does user hold THIS fund? ──
+  useEffect(() => {
+    if (!isLoggedIn || kycStatus !== "APPROVED" || !fundData) return;
+    const token = localStorage.getItem("token");
+    fetch(`${TRANSACTION_API}/api/transactions/portfolio`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(data => {
+        const holding = (data.portfolio || []).find(h =>
+          h.fund_id?.toLowerCase() === fundData.name?.toLowerCase()
+        );
+        setUserHolding(holding || null);
+      })
+      .catch(() => setUserHolding(null));
+  }, [isLoggedIn, kycStatus, fundData]);
+
+  // ── SIP date helpers ──
   const { daysInNextMonth, nextMonthName, nextMonthYear, nextMonthIndex } = useMemo(() => {
     const today = new Date();
     const nextMonthDate = new Date(today.getFullYear(), today.getMonth() + 1, 1);
@@ -81,31 +127,22 @@ export function MutualFundDetailPage() {
     `${String(selectedSipDay).padStart(2, "0")} ${nextMonthName} ${nextMonthYear}`,
     [selectedSipDay, nextMonthName, nextMonthYear]);
 
+  // ── Watchlist ──
   const [watchlist, setWatchlist] = useState(() => {
     try { const stored = localStorage.getItem("watchlist"); return stored ? JSON.parse(stored) : []; }
     catch { return []; }
   });
-
-  const isWatchlisted = useMemo(() =>
-    watchlist.some(item => String(item.code) === String(schemeCode)),
-    [watchlist, schemeCode]);
-
+  const isWatchlisted = useMemo(() => watchlist.some(item => String(item.code) === String(schemeCode)), [watchlist, schemeCode]);
   const toggleWatchlist = () => {
     if (!isLoggedIn) { navigate("/login"); return; }
-    let updated;
-    if (isWatchlisted) {
-      updated = watchlist.filter(item => String(item.code) !== String(schemeCode));
-    } else {
-      updated = [...watchlist, {
-        code: fundData.code, name: fundData.name, fundHouse: fundData.fundHouse,
-        category: fundData.category, type: fundData.type, logo: fundData.logo,
-        risk: fundData.risk, currentNav: fundData.currentNav, cagr3Y: fundData.cagr3Y
-      }];
-    }
+    const updated = isWatchlisted
+      ? watchlist.filter(item => String(item.code) !== String(schemeCode))
+      : [...watchlist, { code: fundData.code, name: fundData.name, fundHouse: fundData.fundHouse, category: fundData.category, type: fundData.type, logo: fundData.logo, risk: fundData.risk, currentNav: fundData.currentNav, cagr3Y: fundData.cagr3Y }];
     setWatchlist(updated);
     localStorage.setItem("watchlist", JSON.stringify(updated));
   };
 
+  // ── NAV helpers ──
   const getNavYearsAgo = (navHistory, years) => {
     if (!navHistory || navHistory.length === 0) return null;
     const parts = navHistory[0].date.split("-");
@@ -151,7 +188,7 @@ export function MutualFundDetailPage() {
   };
 
   const dynamicReturn = useMemo(() => {
-    if (!fundData || !fundData.rawHistory || fundData.rawHistory.length === 0) return null;
+    if (!fundData?.rawHistory?.length) return null;
     const history = fundData.rawHistory;
     const currentNav = parseFloat(history[0].nav);
     const pastPoint = getHistoricalNavForTimeframe(history, timeframe);
@@ -166,67 +203,62 @@ export function MutualFundDetailPage() {
     return { returnVal: parseFloat(returnVal.toFixed(2)), returnType, pastNav, pastDate: pastPoint.date, years: parseFloat(years.toFixed(2)) };
   }, [fundData, timeframe]);
 
-  useEffect(() => {
-    const fetchFundDetail = async () => {
-      setLoading(true); setError("");
-      try {
-        const res = await fetch(`https://api.mfapi.in/mf/${schemeCode}`);
-        if (!res.ok) throw new Error("Scheme not found");
-        const json = await res.json();
-        if (!json || !json.data || json.data.length === 0) throw new Error("This fund has no active NAV data. It may be discontinued or merged. Please go back and select another fund.");
-        const currentNav = parseFloat(json.data[0].nav);
-        const point1Y = getNavYearsAgo(json.data, 1);
-        const point3Y = getNavYearsAgo(json.data, 3);
-        const point5Y = getNavYearsAgo(json.data, 5);
-        const numericCode = parseInt(schemeCode, 10) || 100000;
-        setFundData({
-          code: json.meta.scheme_code, name: json.meta.scheme_name, fundHouse: json.meta.fund_house,
-          category: json.meta.scheme_category || "Mutual Fund", type: json.meta.scheme_type || "Open Ended",
-          logo: getAmcLogo(json.meta.fund_house || json.meta.scheme_name),
-          currentNav, currentDate: json.data[0].date, risk: getRiskCategory(json.meta.scheme_name),
-          cagr1Y: calculateCAGR(currentNav, point1Y ? parseFloat(point1Y.nav) : null, 1),
-          cagr3Y: calculateCAGR(currentNav, point3Y ? parseFloat(point3Y.nav) : null, 3),
-          cagr5Y: calculateCAGR(currentNav, point5Y ? parseFloat(point5Y.nav) : null, 5),
-          date1Y: point1Y?.date || "N/A", date3Y: point3Y?.date || "N/A", date5Y: point5Y?.date || "N/A",
-          aum: ((numericCode % 35) * 650 + 1200).toLocaleString("en-IN") + " Cr",
-          expenseRatio: ((numericCode % 13) * 0.08 + 0.35).toFixed(2) + "%",
-          minSip: numericCode % 2 === 0 ? "₹100" : "₹500",
-          exitLoad: "1.00% if redeemed within 365 days",
-          manager: numericCode % 3 === 0 ? "Mr. Rajeev Thakkar" : numericCode % 3 === 1 ? "Mr. Anupam Tiwari" : "Ms. Sohini Andani",
-          rawHistory: json.data || [],
-        });
-      } catch (err) { console.error(err); setError(err.message || "Failed to load mutual fund details."); }
-      finally { setLoading(false); }
-    };
-    if (schemeCode) fetchFundDetail();
-  }, [schemeCode]);
+  // ── Fetch fund data ──
+  const fetchFundDetail = async () => {
+    setLoading(true); setError("");
+    try {
+      setAttemptCount(a => a + 1);
+      const res = await fetchWithRetry(`https://api.mfapi.in/mf/${schemeCode}`, 3);
+      if (!res.ok) throw new Error("This fund could not be found.");
+      const json = await res.json();
+      if (!json?.data?.length) throw new Error("no_data");
+      const parts = json.data[0].date.split("-");
+      const latestDate = new Date(parts[2], parts[1] - 1, parts[0]);
+      const daysSince = (new Date() - latestDate) / (1000 * 60 * 60 * 24);
+      if (daysSince > 60) throw new Error("stale");
+      const currentNav = parseFloat(json.data[0].nav);
+      const point1Y = getNavYearsAgo(json.data, 1);
+      const point3Y = getNavYearsAgo(json.data, 3);
+      const point5Y = getNavYearsAgo(json.data, 5);
+      const numericCode = parseInt(schemeCode, 10) || 100000;
+      setFundData({
+        code: json.meta.scheme_code, name: json.meta.scheme_name, fundHouse: json.meta.fund_house,
+        category: json.meta.scheme_category || "Mutual Fund", type: json.meta.scheme_type || "Open Ended",
+        logo: getAmcLogo(json.meta.fund_house || json.meta.scheme_name),
+        currentNav, currentDate: json.data[0].date, risk: getRiskCategory(json.meta.scheme_name),
+        cagr1Y: calculateCAGR(currentNav, point1Y ? parseFloat(point1Y.nav) : null, 1),
+        cagr3Y: calculateCAGR(currentNav, point3Y ? parseFloat(point3Y.nav) : null, 3),
+        cagr5Y: calculateCAGR(currentNav, point5Y ? parseFloat(point5Y.nav) : null, 5),
+        aum: ((numericCode % 35) * 650 + 1200).toLocaleString("en-IN") + " Cr",
+        expenseRatio: ((numericCode % 13) * 0.08 + 0.35).toFixed(2) + "%",
+        minSip: numericCode % 2 === 0 ? "₹100" : "₹500",
+        exitLoad: "1.00% if redeemed within 365 days",
+        manager: numericCode % 3 === 0 ? "Mr. Rajeev Thakkar" : numericCode % 3 === 1 ? "Mr. Anupam Tiwari" : "Ms. Sohini Andani",
+        rawHistory: json.data || [],
+      });
+    } catch (err) {
+      setError(err.name === "AbortError" ? "timeout" : (err.message || "Unable to load fund details."));
+    } finally { setLoading(false); }
+  };
 
+  useEffect(() => { if (schemeCode) fetchFundDetail(); }, [schemeCode]);
+
+  // ── Invest handler ──
   const minAmount = investMode === "sip" ? 100 : 500;
   const isInvalidAmount = !investAmount || parseFloat(investAmount) < minAmount;
-
-  const handleTabChange = (mode) => { setInvestMode(mode); setInvestAmount(mode === "sip" ? "100" : "500"); };
+  const handleTabChange = (mode) => {
+    setInvestMode(mode);
+    setInvestAmount(mode === "sip" ? "100" : mode === "lumpsum" ? "500" : "");
+    setInvestSuccess(false); setRedeemSuccess(false);
+  };
 
   const handleInvestSubmit = async (e) => {
     e.preventDefault();
-    if (!isLoggedIn) { navigate("/login"); return; }
-
-    // KYC gate
-    if (kycStatus === "NOT_SUBMITTED") {
-      navigate("/user/profile/kyc");
-      return;
-    }
-    if (kycStatus === "PENDING") {
-      alert("Your KYC is under review. You can invest once it is approved (1–2 working days).");
-      return;
-    }
-
-    if (!investAmount || parseFloat(investAmount) < minAmount) { alert(`Minimum amount is ₹${minAmount}`); return; }
-
     const token = localStorage.getItem("token");
-    setLoading(true);
+    setInvestLoading(true);
     try {
       if (investMode === "lumpsum") {
-        const res = await fetch(`${import.meta.env.VITE_TRANSACTION_API || "http://localhost:4003"}/api/transactions/buy`, {
+        const res = await fetch(`${TRANSACTION_API}/api/transactions/buy`, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
           body: JSON.stringify({ fund_id: fundData.name, amount: parseFloat(investAmount), nav: fundData.currentNav }),
@@ -235,152 +267,320 @@ export function MutualFundDetailPage() {
         if (!res.ok) throw new Error(data.error || "Transaction failed");
         setTransactionId(data.transaction?.id || "KFF-" + Math.floor(10000000 + Math.random() * 90000000));
       } else {
-        const res = await fetch(`${import.meta.env.VITE_SIP_API || "http://localhost:4004"}/api/sips`, {
+        const res = await fetch(`${SIP_API}/api/sips`, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
           body: JSON.stringify({ fund_name: fundData.name, amount: parseFloat(investAmount), frequency: "MONTHLY", start_date: sipDate }),
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "SIP creation failed");
-        setTransactionId(data.id || "KFF-" + Math.floor(10000000 + Math.random() * 90000000));
+        setTransactionId(data.sip?.id || data.id || "KFF-" + Math.floor(10000000 + Math.random() * 90000000));
       }
       setInvestSuccess(true);
+      // Refresh holding after buy
+      if (investMode === "lumpsum") {
+        const token2 = localStorage.getItem("token");
+        fetch(`${TRANSACTION_API}/api/transactions/portfolio`, { headers: { Authorization: `Bearer ${token2}` } })
+          .then(r => r.json()).then(data => {
+            const h = (data.portfolio || []).find(h => h.fund_id?.toLowerCase() === fundData.name?.toLowerCase());
+            setUserHolding(h || null);
+          }).catch(() => {});
+      }
     } catch (err) {
       alert(err.message || "Investment failed. Please try again.");
-    } finally {
-      setLoading(false);
-    }
+    } finally { setInvestLoading(false); }
   };
 
-  // KYC invest panel — what to show based on status
+  // ── Redeem handler ──
+  const handleRedeemSubmit = async (e) => {
+    e.preventDefault();
+    if (!redeemUnits || parseFloat(redeemUnits) <= 0) { alert("Enter valid units to redeem."); return; }
+    if (userHolding && parseFloat(redeemUnits) > parseFloat(userHolding.total_units)) {
+      alert(`You only have ${userHolding.total_units} units.`); return;
+    }
+    const token = localStorage.getItem("token");
+    setInvestLoading(true);
+    try {
+      const res = await fetch(`${TRANSACTION_API}/api/transactions/redeem`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ fund_id: fundData.name, units: parseFloat(redeemUnits), nav: fundData.currentNav }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Redemption failed");
+      setRedeemTxId(data.transaction?.id || "KFF-" + Math.floor(10000000 + Math.random() * 90000000));
+      setRedeemSuccess(true);
+      // Refresh holding
+      fetch(`${TRANSACTION_API}/api/transactions/portfolio`, { headers: { Authorization: `Bearer ${token}` } })
+        .then(r => r.json()).then(d => {
+          const h = (d.portfolio || []).find(h => h.fund_id?.toLowerCase() === fundData.name?.toLowerCase());
+          setUserHolding(h || null);
+        }).catch(() => {});
+    } catch (err) {
+      alert(err.message || "Redemption failed. Please try again.");
+    } finally { setInvestLoading(false); }
+  };
+
+  // ── Invest panel ──
   const renderInvestPanel = () => {
-    // Not logged in
-    if (!isLoggedIn) {
-      return (
-        <div style={{ textAlign: "center", padding: "24px 0" }}>
-          <div style={{ fontSize: "40px", marginBottom: "12px" }}>🔐</div>
-          <h3 style={{ fontSize: "16px", fontWeight: "700", color: "#111827", margin: "0 0 8px" }}>Login to Invest</h3>
-          <p style={{ fontSize: "13px", color: "#6b7280", marginBottom: "16px" }}>Create an account or login to start investing in this fund.</p>
-          <button onClick={() => navigate("/login")} style={{ background: "#6C3AED", color: "#fff", border: "none", borderRadius: "8px", padding: "10px 24px", fontSize: "14px", fontWeight: "700", cursor: "pointer", width: "100%" }}>
-            Login to Continue →
-          </button>
-          <button onClick={() => navigate("/register")} style={{ background: "transparent", color: "#6C3AED", border: "1.5px solid #6C3AED", borderRadius: "8px", padding: "10px 24px", fontSize: "14px", fontWeight: "700", cursor: "pointer", width: "100%", marginTop: "8px" }}>
-            Create Account
-          </button>
-        </div>
-      );
-    }
+    // NOT LOGGED IN
+    if (!isLoggedIn) return (
+      <div style={{ textAlign: "center", padding: "24px 0" }}>
+        <div style={{ fontSize: "40px", marginBottom: "12px" }}>🔐</div>
+        <h3 style={{ fontSize: "16px", fontWeight: "700", color: "#111827", margin: "0 0 8px" }}>Login to Invest</h3>
+        <p style={{ fontSize: "13px", color: "#6b7280", marginBottom: "16px" }}>Create an account or login to start investing.</p>
+        <button onClick={() => navigate("/login")} style={{ background: "#6C3AED", color: "#fff", border: "none", borderRadius: "8px", padding: "10px 24px", fontSize: "14px", fontWeight: "700", cursor: "pointer", width: "100%", marginBottom: "8px" }}>Login →</button>
+        <button onClick={() => navigate("/register")} style={{ background: "transparent", color: "#6C3AED", border: "1.5px solid #6C3AED", borderRadius: "8px", padding: "10px 24px", fontSize: "14px", fontWeight: "700", cursor: "pointer", width: "100%" }}>Create Account</button>
+      </div>
+    );
 
-    // KYC not submitted
-    if (kycStatus === "NOT_SUBMITTED") {
-      return (
-        <div style={{ textAlign: "center", padding: "16px 0" }}>
-          <div style={{ fontSize: "40px", marginBottom: "12px" }}>📋</div>
-          <h3 style={{ fontSize: "16px", fontWeight: "700", color: "#111827", margin: "0 0 8px" }}>KYC Required</h3>
-          <p style={{ fontSize: "13px", color: "#6b7280", marginBottom: "16px", lineHeight: "1.5" }}>
-            As per SEBI regulations, you must complete KYC verification before investing in mutual funds.
-          </p>
-          <div style={{ background: "#fff7ed", border: "1px solid #fed7aa", borderRadius: "8px", padding: "12px", marginBottom: "16px", fontSize: "13px", color: "#9a3412", textAlign: "left" }}>
-            ⚠️ KYC verification is mandatory to protect your investments and comply with regulations.
-          </div>
-          <button onClick={() => navigate("/user/profile/kyc")} style={{ background: "#f59e0b", color: "#fff", border: "none", borderRadius: "8px", padding: "12px 24px", fontSize: "14px", fontWeight: "700", cursor: "pointer", width: "100%" }}>
-            Complete KYC Now →
-          </button>
-        </div>
-      );
-    }
+    // KYC NOT SUBMITTED
+    if (kycStatus === "NOT_SUBMITTED") return (
+      <div style={{ textAlign: "center", padding: "16px 0" }}>
+        <div style={{ fontSize: "40px", marginBottom: "12px" }}>📋</div>
+        <h3 style={{ fontSize: "16px", fontWeight: "700", color: "#111827", margin: "0 0 8px" }}>KYC Required</h3>
+        <p style={{ fontSize: "13px", color: "#6b7280", marginBottom: "16px", lineHeight: "1.5" }}>Complete KYC verification before investing as per SEBI regulations.</p>
+        <div style={{ background: "#fff7ed", border: "1px solid #fed7aa", borderRadius: "8px", padding: "12px", marginBottom: "16px", fontSize: "13px", color: "#9a3412", textAlign: "left" }}>⚠️ KYC is mandatory to protect your investments.</div>
+        <button onClick={() => navigate("/user/profile/kyc")} style={{ background: "#f59e0b", color: "#fff", border: "none", borderRadius: "8px", padding: "12px 24px", fontSize: "14px", fontWeight: "700", cursor: "pointer", width: "100%" }}>Complete KYC Now →</button>
+      </div>
+    );
 
-    // KYC pending
-    if (kycStatus === "PENDING") {
-      return (
-        <div style={{ textAlign: "center", padding: "16px 0" }}>
-          <div style={{ fontSize: "40px", marginBottom: "12px" }}>⏳</div>
-          <h3 style={{ fontSize: "16px", fontWeight: "700", color: "#111827", margin: "0 0 8px" }}>KYC Under Review</h3>
-          <p style={{ fontSize: "13px", color: "#6b7280", marginBottom: "16px", lineHeight: "1.5" }}>
-            Your KYC documents are being verified. You can invest once approved.
-          </p>
-          <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: "8px", padding: "12px", fontSize: "13px", color: "#1e40af", textAlign: "left" }}>
-            ℹ️ Verification typically takes <strong>1–2 working days</strong>. We'll notify you once done.
-          </div>
-        </div>
-      );
-    }
+    // KYC PENDING
+    if (kycStatus === "PENDING") return (
+      <div style={{ textAlign: "center", padding: "16px 0" }}>
+        <div style={{ fontSize: "40px", marginBottom: "12px" }}>⏳</div>
+        <h3 style={{ fontSize: "16px", fontWeight: "700", color: "#111827", margin: "0 0 8px" }}>KYC Under Review</h3>
+        <p style={{ fontSize: "13px", color: "#6b7280", marginBottom: "16px", lineHeight: "1.5" }}>Your documents are being verified. You can invest once approved.</p>
+        <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: "8px", padding: "12px", fontSize: "13px", color: "#1e40af", textAlign: "left" }}>ℹ️ Verification takes <strong>1–2 working days</strong>.</div>
+      </div>
+    );
 
-    // KYC approved — show normal invest form
-    if (investSuccess) {
-      return (
-        <div className="mf-success-container">
-          <div className="mf-success-icon-box">✓</div>
-          <h3 className="mf-success-title">Investment Initialized!</h3>
-          <p className="mf-success-text">Successfully set up a <strong>{investMode === "sip" ? "Monthly SIP" : "One-Time"}</strong> investment of <strong>₹{parseFloat(investAmount).toLocaleString("en-IN")}</strong> in <br /><em>{fundData.name}</em>.</p>
-          <div style={{ backgroundColor: "#F3F4F6", padding: "12px", borderRadius: "8px", fontSize: "12px", color: "var(--mf-text-muted)", marginBottom: "20px", textAlign: "left" }}>
-            <div><strong>Transaction ID:</strong> {transactionId}</div>
-            {investMode === "sip" && <div style={{ marginTop: "4px" }}><strong>Installment Day:</strong> {formattedInstallmentDate}</div>}
-            <div style={{ marginTop: "4px" }}><strong>Order Date:</strong> {new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</div>
-          </div>
-          <button type="button" className="mf-success-close" onClick={() => setInvestSuccess(false)}>New Investment</button>
+    // ── KYC APPROVED ──
+
+    // BUY SUCCESS
+    if (investSuccess) return (
+      <div className="mf-success-container">
+        <div className="mf-success-icon-box">✓</div>
+        <h3 className="mf-success-title">Investment Initialized!</h3>
+        <p className="mf-success-text">Set up a <strong>{investMode === "sip" ? "Monthly SIP" : "One-Time"}</strong> of <strong>₹{parseFloat(investAmount).toLocaleString("en-IN")}</strong> in <em>{fundData.name}</em>.</p>
+        <div style={{ backgroundColor: "#F3F4F6", padding: "12px", borderRadius: "8px", fontSize: "12px", color: "var(--mf-text-muted)", marginBottom: "20px", textAlign: "left" }}>
+          <div><strong>Transaction ID:</strong> {transactionId}</div>
+          {investMode === "sip" && <div style={{ marginTop: "4px" }}><strong>Installment Day:</strong> {formattedInstallmentDate}</div>}
+          <div style={{ marginTop: "4px" }}><strong>Date:</strong> {new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</div>
         </div>
-      );
-    }
+        <button type="button" className="mf-success-close" onClick={() => { setInvestSuccess(false); setInvestMode("sip"); }}>New Investment</button>
+      </div>
+    );
+
+    // REDEEM SUCCESS
+    if (redeemSuccess) return (
+      <div className="mf-success-container">
+        <div className="mf-success-icon-box" style={{ background: "linear-gradient(135deg,#ef4444,#f87171)" }}>✓</div>
+        <h3 className="mf-success-title">Redemption Initiated!</h3>
+        <p className="mf-success-text">Redeemed <strong>{redeemUnits} units</strong> of <em>{fundData.name}</em>.</p>
+        <div style={{ backgroundColor: "#F3F4F6", padding: "12px", borderRadius: "8px", fontSize: "12px", color: "var(--mf-text-muted)", marginBottom: "20px", textAlign: "left" }}>
+          <div><strong>Redemption ID:</strong> {redeemTxId}</div>
+          <div style={{ marginTop: "4px" }}><strong>NAV:</strong> ₹{fundData.currentNav.toFixed(2)}</div>
+          <div style={{ marginTop: "4px" }}><strong>Approx Value:</strong> ₹{(parseFloat(redeemUnits) * fundData.currentNav).toLocaleString("en-IN", { maximumFractionDigits: 2 })}</div>
+          <div style={{ marginTop: "4px" }}><strong>Date:</strong> {new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</div>
+        </div>
+        <button type="button" className="mf-success-close" onClick={() => { setRedeemSuccess(false); setInvestMode("sip"); }}>Done</button>
+      </div>
+    );
 
     return (
-      <form onSubmit={handleInvestSubmit}>
-        <h3 style={{ fontSize: "16px", fontWeight: 700, margin: "0 0 16px 0", color: "var(--mf-text-dark)", textAlign: "left" }}>Start Investment</h3>
-        {/* KYC verified badge */}
+      <>
+        <h3 style={{ fontSize: "16px", fontWeight: 700, margin: "0 0 12px 0", color: "var(--mf-text-dark)", textAlign: "left" }}>
+          {investMode === "redeem" ? "Redeem Units" : "Start Investment"}
+        </h3>
+
+        {/* ✅ KYC verified badge */}
         <div style={{ display: "flex", alignItems: "center", gap: "6px", background: "#f0fdf4", border: "1px solid #86efac", borderRadius: "8px", padding: "8px 12px", marginBottom: "16px", fontSize: "13px", color: "#15803d", fontWeight: "600" }}>
           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
           KYC Verified — You can invest freely
         </div>
+
+        {/* ✅ Tabs — Monthly SIP | One-Time | Redeem (only if holding exists) */}
         <div className="mf-invest-tabs">
-          <button type="button" className={`mf-invest-tab ${investMode === "sip" ? "active" : ""}`} onClick={() => handleTabChange("sip")}>Monthly SIP</button>
-          <button type="button" className={`mf-invest-tab ${investMode === "lumpsum" ? "active" : ""}`} onClick={() => handleTabChange("lumpsum")}>One-Time</button>
+          <button type="button"
+            className={`mf-invest-tab ${investMode === "sip" ? "active" : ""}`}
+            onClick={() => handleTabChange("sip")}>
+            Monthly SIP
+          </button>
+          <button type="button"
+            className={`mf-invest-tab ${investMode === "lumpsum" ? "active" : ""}`}
+            onClick={() => handleTabChange("lumpsum")}>
+            One-Time
+          </button>
+          {userHolding && (
+            <button type="button"
+              className={`mf-invest-tab ${investMode === "redeem" ? "active" : ""}`}
+              onClick={() => handleTabChange("redeem")}
+              style={{
+                color: investMode === "redeem" ? "#fff" : "#EF4444",
+                background: investMode === "redeem" ? "#EF4444" : "transparent",
+                borderColor: "#EF4444",
+              }}>
+              Redeem
+            </button>
+          )}
         </div>
-        <div className="mf-invest-input-wrapper">
-          <label className="mf-invest-label">Investment Amount</label>
-          <div className="mf-invest-input-box">
-            <span className="mf-invest-currency">₹</span>
-            <input type="number" className="mf-invest-input" value={investAmount} onChange={(e) => setInvestAmount(e.target.value)} min={minAmount} required />
-          </div>
-          {isInvalidAmount && investAmount !== "" && <span style={{ color: "#EF4444", fontSize: "12px", marginTop: "6px", display: "block" }}>Minimum {investMode === "sip" ? "SIP" : "One-Time"} amount is ₹{minAmount}</span>}
-        </div>
-        {investMode === "sip" && (
-          <div className="mf-invest-input-wrapper">
-            <label className="mf-invest-label" style={{ textTransform: "lowercase" }}>sip installment date</label>
-            <div className="sip-calendar-container">
-              <div className="sip-calendar-grid">
-                {daysArray.map((day) => (
-                  <button key={day} type="button" className={`sip-calendar-day ${day === selectedSipDay ? "selected" : ""}`} onClick={() => setSelectedSipDay(day)}>{day}</button>
-                ))}
+
+        {/* ── BUY form (SIP / Lumpsum) ── */}
+        {(investMode === "sip" || investMode === "lumpsum") && (
+          <form onSubmit={handleInvestSubmit}>
+            <div className="mf-invest-input-wrapper">
+              <label className="mf-invest-label">Investment Amount</label>
+              <div className="mf-invest-input-box">
+                <span className="mf-invest-currency">₹</span>
+                <input type="number" className="mf-invest-input" value={investAmount}
+                  onChange={e => setInvestAmount(e.target.value)} min={minAmount} required />
               </div>
-              <div className="sip-calendar-info">
-                <span>Next SIP instalment on {String(selectedSipDay).padStart(2, "0")} of {nextMonthName}</span>
+              {isInvalidAmount && investAmount !== "" && (
+                <span style={{ color: "#EF4444", fontSize: "12px", marginTop: "6px", display: "block" }}>
+                  Minimum {investMode === "sip" ? "SIP" : "One-Time"} is ₹{minAmount}
+                </span>
+              )}
+            </div>
+
+            {investMode === "sip" && (
+              <div className="mf-invest-input-wrapper">
+                <label className="mf-invest-label">SIP Installment Date</label>
+                <div className="sip-calendar-container">
+                  <div className="sip-calendar-grid">
+                    {daysArray.map(day => (
+                      <button key={day} type="button"
+                        className={`sip-calendar-day ${day === selectedSipDay ? "selected" : ""}`}
+                        onClick={() => setSelectedSipDay(day)}>{day}</button>
+                    ))}
+                  </div>
+                  <div className="sip-calendar-info">
+                    <span>Next instalment on {String(selectedSipDay).padStart(2, "0")} {nextMonthName}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <button type="submit" className="mf-invest-btn"
+              disabled={isInvalidAmount || investLoading}
+              style={isInvalidAmount || investLoading ? { opacity: 0.6, cursor: "not-allowed" } : {}}>
+              {investLoading ? "Processing..." : investMode === "sip" ? "Start Monthly SIP" : "Invest Now"}
+            </button>
+          </form>
+        )}
+
+        {/* ── REDEEM form ── */}
+        {investMode === "redeem" && userHolding && (
+          <form onSubmit={handleRedeemSubmit}>
+            {/* Holding summary */}
+            <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "10px", padding: "14px 16px", marginBottom: "16px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
+                <span style={{ fontSize: "13px", color: "#6b7280" }}>Units Held</span>
+                <strong style={{ fontSize: "14px", color: "#111827" }}>{parseFloat(userHolding.total_units).toFixed(4)}</strong>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
+                <span style={{ fontSize: "13px", color: "#6b7280" }}>Current NAV</span>
+                <strong style={{ fontSize: "14px", color: "#111827" }}>₹{fundData.currentNav.toFixed(2)}</strong>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", borderTop: "1px solid #fecaca", paddingTop: "8px", marginTop: "4px" }}>
+                <span style={{ fontSize: "13px", color: "#6b7280" }}>Current Value</span>
+                <strong style={{ fontSize: "15px", color: "#EF4444" }}>
+                  ₹{(parseFloat(userHolding.total_units) * fundData.currentNav).toLocaleString("en-IN", { maximumFractionDigits: 2 })}
+                </strong>
               </div>
             </div>
-          </div>
+
+            <div className="mf-invest-input-wrapper">
+              <label className="mf-invest-label">Units to Redeem</label>
+              <div className="mf-invest-input-box">
+                <input type="number" className="mf-invest-input" placeholder="e.g. 5.0000"
+                  value={redeemUnits} step="0.0001"
+                  max={parseFloat(userHolding.total_units)}
+                  onChange={e => setRedeemUnits(e.target.value)} required />
+              </div>
+              {/* Max button */}
+              <button type="button"
+                onClick={() => setRedeemUnits(String(parseFloat(userHolding.total_units).toFixed(4)))}
+                style={{ background: "none", border: "none", color: "#EF4444", fontSize: "12px", fontWeight: "700", cursor: "pointer", padding: "4px 0", marginTop: "4px" }}>
+                Redeem All ({parseFloat(userHolding.total_units).toFixed(4)} units)
+              </button>
+              {redeemUnits && fundData && (
+                <div style={{ fontSize: "12px", color: "#6b7280", marginTop: "6px" }}>
+                  Approx value: <strong style={{ color: "#EF4444" }}>₹{(parseFloat(redeemUnits || 0) * fundData.currentNav).toLocaleString("en-IN", { maximumFractionDigits: 2 })}</strong>
+                </div>
+              )}
+            </div>
+
+            <div style={{ background: "#fef9c3", border: "1px solid #fde047", borderRadius: "8px", padding: "10px 12px", marginBottom: "16px", fontSize: "12px", color: "#a16207" }}>
+              ⚠️ Exit load of 1% applies if redeemed within 365 days of purchase.
+            </div>
+
+            <button type="submit" className="mf-invest-btn"
+              disabled={!redeemUnits || parseFloat(redeemUnits) <= 0 || investLoading}
+              style={{
+                background: "linear-gradient(135deg, #ef4444, #dc2626)",
+                opacity: (!redeemUnits || parseFloat(redeemUnits) <= 0 || investLoading) ? 0.6 : 1,
+                cursor: (!redeemUnits || investLoading) ? "not-allowed" : "pointer",
+              }}>
+              {investLoading ? "Processing..." : "Confirm Redemption"}
+            </button>
+          </form>
         )}
-        <button type="submit" className="mf-invest-btn" disabled={isInvalidAmount} style={isInvalidAmount ? { opacity: 0.5, cursor: "not-allowed" } : {}}>
-          {investMode === "sip" ? "Start Monthly SIP" : "Invest Now"}
-        </button>
-      </form>
+      </>
+    );
+  };
+
+  // ── Error UI ──
+  const renderError = () => {
+    const isTimeout = error === "timeout";
+    const isNoData  = error === "no_data";
+    const isStale   = error === "stale";
+    const icon    = isTimeout ? "⏱️" : isNoData || isStale ? "📭" : "⚠️";
+    const title   = isTimeout ? "Taking Longer Than Usual" : isNoData ? "Fund Data Unavailable" : isStale ? "Fund May Be Discontinued" : "Unable to Load Fund";
+    const message = isTimeout ? "The fund data server is responding slowly. Click Try Again — it usually loads on the 2nd attempt."
+      : isNoData ? "This fund returned no NAV data. It could be a temporary API issue. Please try again."
+      : isStale  ? "This fund has not been updated in over 60 days. It may have been discontinued or merged."
+      : error;
+    return (
+      <div className="mf-empty-state">
+        <div style={{ fontSize: "48px", marginBottom: "16px" }}>{icon}</div>
+        <div className="mf-empty-title" style={{ marginBottom: "8px" }}>{title}</div>
+        <div className="mf-empty-text" style={{ maxWidth: "360px", margin: "0 auto 24px", lineHeight: "1.6" }}>{message}</div>
+        <div style={{ display: "flex", gap: "12px", justifyContent: "center", flexWrap: "wrap" }}>
+          {(isTimeout || isNoData) && (
+            <button onClick={() => { setError(""); fetchFundDetail(); }}
+              style={{ background: "#6C3AED", color: "#fff", border: "none", borderRadius: "8px", padding: "10px 24px", fontSize: "14px", fontWeight: "700", cursor: "pointer" }}>
+              🔄 Try Again
+            </button>
+          )}
+          <button onClick={() => navigate("/mutual-fund")}
+            style={{ background: "transparent", color: "#6C3AED", border: "1.5px solid #6C3AED", borderRadius: "8px", padding: "10px 24px", fontSize: "14px", fontWeight: "700", cursor: "pointer" }}>
+            ← Back to List
+          </button>
+        </div>
+      </div>
     );
   };
 
   const content = (
     <>
-      <div style={{ marginBottom: "24px" }}>
-  <button type="button" className="mf-back-btn" onClick={() => navigate("/mutual-fund")}>← Back to List</button>
-</div>
+      <button type="button" className="mf-back-btn" onClick={() => navigate("/mutual-fund")}
+        style={{ marginBottom: "24px", display: "block" }}>
+        ← Back to List
+      </button>
 
-      {loading && (<div className="mf-loader-container"><div className="mf-spinner" /><div className="mf-loader-text">Loading scheme data...</div></div>)}
-
-      {error && (
-        <div className="mf-empty-state">
-          <div className="mf-empty-icon">⚠️</div>
-          <div className="mf-empty-title">Error Loading Details</div>
-          <div className="mf-empty-text">{error}</div>
-          <button onClick={() => navigate("/mutual-fund")} style={{ marginTop: "16px", backgroundColor: "var(--mf-accent-purple)", color: "#FFFFFF", border: "none", borderRadius: "8px", padding: "8px 16px", fontSize: "14px", fontWeight: "600", cursor: "pointer" }}>Return to List</button>
+      {loading && (
+        <div className="mf-loader-container">
+          <div className="mf-spinner" />
+          {attemptCount > 1 && (
+            <div style={{ marginTop: "16px", fontSize: "13px", color: "#6b7280", textAlign: "center" }}>
+              Retrying... (attempt {attemptCount} of 3)
+            </div>
+          )}
         </div>
       )}
+
+      {error && !loading && renderError()}
 
       {!loading && !error && fundData && (
         <div className="mf-detail-grid">
@@ -397,14 +597,14 @@ export function MutualFundDetailPage() {
                     </div>
                   </div>
                 </div>
-                <button type="button" onClick={toggleWatchlist} style={{ display: "flex", alignItems: "center", gap: "6px", backgroundColor: isWatchlisted ? "rgba(239, 68, 68, 0.08)" : "transparent", color: isWatchlisted ? "#EF4444" : "var(--mf-text-muted)", border: "1.5px solid", borderColor: isWatchlisted ? "#EF4444" : "var(--mf-border-color)", borderRadius: "20px", padding: "6px 14px", fontSize: "13px", fontWeight: "600", cursor: "pointer", transition: "all 0.2s ease", whiteSpace: "nowrap", alignSelf: "center" }}>
+                <button type="button" onClick={toggleWatchlist} style={{ display: "flex", alignItems: "center", gap: "6px", backgroundColor: isWatchlisted ? "rgba(239,68,68,0.08)" : "transparent", color: isWatchlisted ? "#EF4444" : "var(--mf-text-muted)", border: "1.5px solid", borderColor: isWatchlisted ? "#EF4444" : "var(--mf-border-color)", borderRadius: "20px", padding: "6px 14px", fontSize: "13px", fontWeight: "600", cursor: "pointer", whiteSpace: "nowrap", alignSelf: "center" }}>
                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill={isWatchlisted ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
                   <span>{isWatchlisted ? "Watchlisted" : "Watchlist"}</span>
                 </button>
               </div>
               <div style={{ display: "flex", alignItems: "baseline", gap: "10px", marginTop: "16px", paddingTop: "16px", borderTop: "1px solid var(--mf-border-color)" }}>
                 <span style={{ fontSize: "28px", fontWeight: 800, color: "var(--mf-text-dark)" }}>₹{fundData.currentNav.toFixed(2)}</span>
-                <span style={{ fontSize: "14px", color: "var(--mf-text-muted)" }}>Latest NAV on ({fundData.currentDate})</span>
+                <span style={{ fontSize: "14px", color: "var(--mf-text-muted)" }}>Latest NAV ({fundData.currentDate})</span>
               </div>
             </div>
 
@@ -414,14 +614,14 @@ export function MutualFundDetailPage() {
               <div className="mf-detail-card" style={{ marginBottom: "24px" }}>
                 <h3 style={{ fontSize: "16px", fontWeight: 700, marginBottom: "16px", color: "var(--mf-text-dark)", textAlign: "left" }}>NAV Return Analysis ({timeframe})</h3>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px", backgroundColor: "#FAFBFD", borderRadius: "12px", border: "1px solid var(--mf-border-color)", flexWrap: "wrap", gap: "16px" }}>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                    <span style={{ fontSize: "13px", color: "var(--mf-text-muted)", fontWeight: 500 }}>{dynamicReturn.returnType}</span>
+                  <div>
+                    <span style={{ fontSize: "13px", color: "var(--mf-text-muted)", fontWeight: 500, display: "block", marginBottom: "4px" }}>{dynamicReturn.returnType}</span>
                     <span style={{ fontSize: "32px", fontWeight: 800, color: dynamicReturn.returnVal >= 0 ? "#10B981" : "#EF4444" }}>{dynamicReturn.returnVal >= 0 ? "+" : ""}{dynamicReturn.returnVal}%</span>
                   </div>
-                  <div style={{ textAlign: "right", display: "flex", flexDirection: "column", gap: "6px" }}>
-                    <div style={{ fontSize: "13px", color: "var(--mf-text-dark)" }}>Initial NAV: <strong>₹{dynamicReturn.pastNav.toFixed(2)}</strong> ({dynamicReturn.pastDate})</div>
-                    <div style={{ fontSize: "13px", color: "var(--mf-text-dark)" }}>Current NAV: <strong>₹{fundData.currentNav.toFixed(2)}</strong> ({fundData.currentDate})</div>
-                    {dynamicReturn.years > 0 && <div style={{ fontSize: "12px", color: "var(--mf-text-muted)", fontStyle: "italic", marginTop: "2px" }}>Period: {dynamicReturn.years} {dynamicReturn.years === 1 ? "year" : "years"}</div>}
+                  <div style={{ textAlign: "right" }}>
+                    <div style={{ fontSize: "13px", color: "var(--mf-text-dark)", marginBottom: "4px" }}>From: <strong>₹{dynamicReturn.pastNav.toFixed(2)}</strong> ({dynamicReturn.pastDate})</div>
+                    <div style={{ fontSize: "13px", color: "var(--mf-text-dark)" }}>To: <strong>₹{fundData.currentNav.toFixed(2)}</strong> ({fundData.currentDate})</div>
+                    {dynamicReturn.years > 0 && <div style={{ fontSize: "12px", color: "var(--mf-text-muted)", fontStyle: "italic", marginTop: "2px" }}>Period: {dynamicReturn.years} years</div>}
                   </div>
                 </div>
               </div>
@@ -430,7 +630,7 @@ export function MutualFundDetailPage() {
             <div className="mf-detail-card">
               <h3 style={{ fontSize: "16px", fontWeight: 700, marginBottom: "16px", color: "var(--mf-text-dark)", textAlign: "left" }}>Scheme Key Info</h3>
               <div className="mf-details-list">
-                {[["Assets Under Management (AUM)", fundData.aum], ["Expense Ratio", fundData.expenseRatio], ["Min. SIP Investment", fundData.minSip], ["Exit Load", fundData.exitLoad], ["Fund Manager", fundData.manager]].map(([label, value]) => (
+                {[["AUM", fundData.aum], ["Expense Ratio", fundData.expenseRatio], ["Min. SIP", fundData.minSip], ["Exit Load", fundData.exitLoad], ["Fund Manager", fundData.manager]].map(([label, value]) => (
                   <div key={label} className="mf-details-item">
                     <span className="mf-details-label">{label}</span>
                     <span className="mf-details-value">{value}</span>
@@ -440,10 +640,7 @@ export function MutualFundDetailPage() {
             </div>
           </div>
 
-          {/* Invest panel — KYC gated */}
-          <div className="mf-invest-card">
-            {renderInvestPanel()}
-          </div>
+          <div className="mf-invest-card">{renderInvestPanel()}</div>
         </div>
       )}
     </>

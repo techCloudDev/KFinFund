@@ -259,7 +259,6 @@
   padding: 32px;
   width: 100%;
   max-width: 1400px;
-
   box-sizing: border-box;
   margin: 0 auto;
 }
@@ -1119,8 +1118,8 @@
 
   /* Dashboard stats stack */
   .stats-grid {
-    grid-template-columns: 1fr !important;
-  }
+  grid-template-columns: 1fr 1fr !important;
+}
 
   .main-grid {
     grid-template-columns: 1fr !important;

@@ -3,7 +3,6 @@ const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
-const mongoSanitize = require("express-mongo-sanitize");
 
 const pool = require("./config/db");
 const sipRoutes = require("./routes/sipRoutes");
@@ -22,11 +21,6 @@ app.use(cors({
 
 // ── Body Parser ──
 app.use(express.json({ limit: "10kb" }));
-
-
-
-// ── NoSQL Injection Protection ──
-app.use(mongoSanitize());
 
 // ── Global Rate Limiter ──
 const globalLimiter = rateLimit({
@@ -55,16 +49,9 @@ app.use("/api/sips", sipRoutes);
 app.get("/", async (req, res) => {
   try {
     const result = await pool.query("SELECT NOW()");
-    res.json({
-      message: "SIP Service Running",
-      databaseTime: result.rows[0].now
-    });
+    res.json({ message: "SIP Service Running", databaseTime: result.rows[0].now });
   } catch (error) {
-    console.error("❌ Error:", error.message);
-    res.status(500).json({
-      error: "Database connection failed",
-      reason: error.message
-    });
+    res.status(500).json({ error: "Database connection failed", reason: error.message });
   }
 });
 

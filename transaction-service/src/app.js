@@ -3,7 +3,6 @@ const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
-const mongoSanitize = require("express-mongo-sanitize");
 
 const pool = require("./config/db");
 const transactionRoutes = require("./routes/transactionRoutes");
@@ -23,10 +22,6 @@ app.use(cors({
 // ── Body Parser ──
 app.use(express.json({ limit: "10kb" }));
 
-
-// ── NoSQL Injection Protection ──
-app.use(mongoSanitize());
-
 // ── Global Rate Limiter ──
 const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -37,7 +32,7 @@ const globalLimiter = rateLimit({
 });
 app.use(globalLimiter);
 
-// ── Transaction Rate Limiter (strict — financial operations) ──
+// ── Transaction Rate Limiter ──
 const transactionLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 12,
@@ -55,12 +50,8 @@ app.use("/api/transactions", transactionRoutes);
 app.get("/", async (req, res) => {
   try {
     const result = await pool.query("SELECT NOW()");
-    res.json({
-      message: "Transaction Service Running",
-      databaseTime: result.rows[0].now
-    });
+    res.json({ message: "Transaction Service Running", databaseTime: result.rows[0].now });
   } catch (error) {
-    console.error(error);
     res.status(500).json({ error: "Database connection failed" });
   }
 });

@@ -3,7 +3,6 @@ const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
-const mongoSanitize = require("express-mongo-sanitize");
 
 const connectDB = require("./config/db");
 const kycRoutes = require("./routes/kycRoutes");
@@ -25,11 +24,14 @@ app.use(cors({
 }));
 
 // ── Body Parser ──
-app.use(express.json({ limit: "10kb" }));
-
-
-// ── NoSQL Injection Protection ──
-app.use(mongoSanitize());
+// NOTE: Do NOT add express.json() before multer routes
+// multer handles multipart/form-data parsing itself
+app.use((req, res, next) => {
+  if (req.headers['content-type']?.includes('multipart/form-data')) {
+    return next(); // skip json parser for file uploads
+  }
+  express.json({ limit: "10kb" })(req, res, next);
+});
 
 // ── Global Rate Limiter ──
 const globalLimiter = rateLimit({
@@ -41,7 +43,7 @@ const globalLimiter = rateLimit({
 });
 app.use(globalLimiter);
 
-// ── KYC Rate Limiter (stricter for submissions) ──
+// ── KYC Rate Limiter ──
 const kycLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 12,
@@ -59,10 +61,7 @@ app.use("/api/kyc", kycRoutes);
 
 // ── Health Check ──
 app.get("/", (req, res) => {
-  res.json({
-    message: "KYC Service Running",
-    port: PORT
-  });
+  res.json({ message: "KYC Service Running", port: PORT });
 });
 
 // ── 404 Handler ──
