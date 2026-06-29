@@ -282,3 +282,125 @@
 .calendar-grid button:hover { background: #ede9fe; }
 .calendar-grid button:disabled { cursor: default; }
 .calendar-grid .selected-date { background: #4f46e5; color: white; }
+/* ── Mobile Responsiveness ── */
+
+/* Tablet (max 1024px) */
+@media (max-width: 1024px) {
+  .main-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .allocation-card {
+    min-height: 200px;
+  }
+
+  .bottom-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .transactions-card {
+    grid-column: 1 / -1;
+  }
+}
+
+/* Mobile (max 768px) */
+@media (max-width: 768px) {
+  .stats-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .stat-card h2 {
+    font-size: 22px;
+  }
+
+  .main-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .overview-card {
+    min-height: 250px;
+    padding: 14px;
+  }
+
+  .allocation-card {
+    min-height: 180px;
+    padding: 14px;
+  }
+
+  .bottom-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .transactions-card {
+    grid-column: auto;
+  }
+
+  .small-card {
+    min-height: 100px;
+    padding: 14px;
+  }
+
+  .small-card h3 {
+    font-size: 15px;
+    margin-bottom: 10px;
+  }
+
+  .small-card h2 {
+    font-size: 20px;
+  }
+
+  .section-head {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .section-head select {
+    width: 100%;
+  }
+
+  .chart-area {
+    height: 200px;
+  }
+
+  .allocation-list p {
+    font-size: 13px;
+  }
+
+  .transaction-row {
+    font-size: 13px;
+  }
+}
+
+/* Small Mobile (max 480px) */
+@media (max-width: 480px) {
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .stat-card {
+    padding: 14px;
+  }
+
+  .stat-card h2 {
+    font-size: 20px;
+  }
+
+  .bottom-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .sip-card {
+    flex-direction: row;
+    justify-content: space-between;
+  }
+
+  .icon-circle {
+    width: 40px;
+    height: 40px;
+    font-size: 18px;
+  }
+}
