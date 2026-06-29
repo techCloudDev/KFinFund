@@ -1,3 +1,4 @@
+import { logout as apiLogout } from "../../../utils/api";
 import { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import logoImg from "/logo.png";
@@ -25,7 +26,17 @@ export default function DashboardLayout({ children, pageTitle = "Dashboard" }) {
   useEffect(() => { setSidebarOpen(false); }, [location.pathname]);
 
   const handleLogout = () => {
+    // ✅ Delete refresh token from backend
+    const refreshToken = localStorage.getItem("refreshToken");
+    if (refreshToken) {
+      fetch(`${import.meta.env.VITE_USER_API || "http://localhost:4001"}/api/users/logout`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refreshToken }),
+      }).catch(() => {});
+    }
     localStorage.removeItem("token");
+    localStorage.removeItem("refreshToken");
     localStorage.removeItem("watchlist");
     navigate("/");
   };

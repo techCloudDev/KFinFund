@@ -1,3 +1,4 @@
+import { apiFetch } from "../../utils/api";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import DashboardLayout from "../mutual-fund/component/DashboardLayout";
@@ -48,9 +49,7 @@ export default function TransactionPage() {
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) { navigate("/login"); return; }
-    fetch(`${TRANSACTION_SERVICE_URL}/api/transactions/history`, {
-      headers: { Authorization: `Bearer ${token}` }
-    })
+    apiFetch(`${TRANSACTION_SERVICE_URL}/api/transactions/history`)
       .then(r => r.json())
       .then(data => { setTransactions(data.transactions || []); setLoading(false); })
       .catch(() => { setTransactions([]); setLoading(false); });

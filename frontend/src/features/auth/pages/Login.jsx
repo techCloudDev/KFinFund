@@ -38,6 +38,10 @@ function Login() {
 
       if (response.ok) {
         localStorage.setItem("token", data.token);
+        // ✅ Save refresh token for silent refresh
+        if (data.refreshToken) {
+          localStorage.setItem("refreshToken", data.refreshToken);
+        }
         navigate("/dashboard");
       } else {
         // ✅ Map backend error codes to friendly messages

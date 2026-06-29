@@ -10,11 +10,15 @@ spec:
   selector:
     matchLabels:
       app: mongodb
+  strategy:
+    type: Recreate
   template:
     metadata:
       labels:
         app: mongodb
     spec:
+      nodeSelector:
+        kubernetes.io/hostname: ip-192-168-68-227.ap-south-1.compute.internal
       containers:
       - name: mongodb
         image: mongo:6-jammy
@@ -22,7 +26,9 @@ spec:
         - containerPort: 27017
         volumeMounts:
         - mountPath: /data/db
-          name: mongo-storage
+          name: mongodb-storage
       volumes:
-      - name: mongo-storage
-        emptyDir: {}
+      - name: mongodb-storage
+        hostPath:
+          path: /mnt/mongodb-data
+          type: DirectoryOrCreate

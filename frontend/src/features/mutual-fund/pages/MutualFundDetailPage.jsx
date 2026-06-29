@@ -1,3 +1,4 @@
+import { apiFetch } from "../../../utils/api";
 import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import DashboardLayout from "../component/DashboardLayout";
@@ -31,7 +32,7 @@ const fetchWithRetry = async (url, attempts = 3) => {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeout);
     try {
-      const res = await fetch(url, { signal: controller.signal });
+      const res = await apiFetch(url, { signal: controller.signal });
       clearTimeout(timer);
       return res;
     } catch (err) {
@@ -73,7 +74,7 @@ export function MutualFundDetailPage() {
   useEffect(() => {
     if (!isLoggedIn) { setKycStatus("NOT_LOGGED_IN"); return; }
     const token = localStorage.getItem("token");
-    fetch(`${KYC_SERVICE_URL}/api/kyc/status`, { headers: { Authorization: `Bearer ${token}` } })
+    apiFetch(`${KYC_SERVICE_URL}/api/kyc/status`)
       .then(r => r.json()).then(d => setKycStatus(d.status || "NOT_SUBMITTED")).catch(() => setKycStatus("NOT_SUBMITTED"));
   }, [isLoggedIn]);
 
@@ -81,7 +82,7 @@ export function MutualFundDetailPage() {
   useEffect(() => {
     if (!isLoggedIn || kycStatus !== "APPROVED" || !fundData) return;
     const token = localStorage.getItem("token");
-    fetch(`${TRANSACTION_API}/api/transactions/portfolio`, { headers: { Authorization: `Bearer ${token}` } })
+    apiFetch(`${TRANSACTION_API}/api/transactions/portfolio`)
       .then(r => r.json())
       .then(data => {
         const holding = (data.portfolio || []).find(h =>
@@ -258,18 +259,20 @@ export function MutualFundDetailPage() {
     setInvestLoading(true);
     try {
       if (investMode === "lumpsum") {
-        const res = await fetch(`${TRANSACTION_API}/api/transactions/buy`, {
+        const res = await apiFetch(`${TRANSACTION_API}/api/transactions/buy`, {
           method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          headers: { "Content-Type": "application/json",
+},
           body: JSON.stringify({ fund_id: fundData.name, amount: parseFloat(investAmount), nav: fundData.currentNav }),
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Transaction failed");
         setTransactionId(data.transaction?.id || "KFF-" + Math.floor(10000000 + Math.random() * 90000000));
       } else {
-        const res = await fetch(`${SIP_API}/api/sips`, {
+        const res = await apiFetch(`${SIP_API}/api/sips`, {
           method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          headers: { "Content-Type": "application/json",
+},
           body: JSON.stringify({ fund_name: fundData.name, amount: parseFloat(investAmount), frequency: "MONTHLY", start_date: sipDate }),
         });
         const data = await res.json();
@@ -280,7 +283,7 @@ export function MutualFundDetailPage() {
       // Refresh holding after buy
       if (investMode === "lumpsum") {
         const token2 = localStorage.getItem("token");
-        fetch(`${TRANSACTION_API}/api/transactions/portfolio`, { headers: { Authorization: `Bearer ${token2}` } })
+        apiFetch(`${TRANSACTION_API}/api/transactions/portfolio`)
           .then(r => r.json()).then(data => {
             const h = (data.portfolio || []).find(h => h.fund_id?.toLowerCase() === fundData.name?.toLowerCase());
             setUserHolding(h || null);
@@ -301,9 +304,10 @@ export function MutualFundDetailPage() {
     const token = localStorage.getItem("token");
     setInvestLoading(true);
     try {
-      const res = await fetch(`${TRANSACTION_API}/api/transactions/redeem`, {
+      const res = await apiFetch(`${TRANSACTION_API}/api/transactions/redeem`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        headers: { "Content-Type": "application/json",
+},
         body: JSON.stringify({ fund_id: fundData.name, units: parseFloat(redeemUnits), nav: fundData.currentNav }),
       });
       const data = await res.json();
@@ -311,7 +315,7 @@ export function MutualFundDetailPage() {
       setRedeemTxId(data.transaction?.id || "KFF-" + Math.floor(10000000 + Math.random() * 90000000));
       setRedeemSuccess(true);
       // Refresh holding
-      fetch(`${TRANSACTION_API}/api/transactions/portfolio`, { headers: { Authorization: `Bearer ${token}` } })
+      apiFetch(`${TRANSACTION_API}/api/transactions/portfolio`)
         .then(r => r.json()).then(d => {
           const h = (d.portfolio || []).find(h => h.fund_id?.toLowerCase() === fundData.name?.toLowerCase());
           setUserHolding(h || null);
@@ -358,19 +362,53 @@ export function MutualFundDetailPage() {
     // ── KYC APPROVED ──
 
     // BUY SUCCESS
-    if (investSuccess) return (
-      <div className="mf-success-container">
-        <div className="mf-success-icon-box">✓</div>
-        <h3 className="mf-success-title">Investment Initialized!</h3>
-        <p className="mf-success-text">Set up a <strong>{investMode === "sip" ? "Monthly SIP" : "One-Time"}</strong> of <strong>₹{parseFloat(investAmount).toLocaleString("en-IN")}</strong> in <em>{fundData.name}</em>.</p>
-        <div style={{ backgroundColor: "#F3F4F6", padding: "12px", borderRadius: "8px", fontSize: "12px", color: "var(--mf-text-muted)", marginBottom: "20px", textAlign: "left" }}>
-          <div><strong>Transaction ID:</strong> {transactionId}</div>
-          {investMode === "sip" && <div style={{ marginTop: "4px" }}><strong>Installment Day:</strong> {formattedInstallmentDate}</div>}
-          <div style={{ marginTop: "4px" }}><strong>Date:</strong> {new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</div>
+    if (investSuccess) {
+      const units = fundData?.currentNav ? (parseFloat(investAmount) / fundData.currentNav).toFixed(4) : "—";
+      const orderId = `KFF-${String(transactionId).padStart(8, "0")}`;
+      return (
+        <div style={{ textAlign: "center", padding: "8px 0" }}>
+          {/* Success icon */}
+          <div style={{ width: "56px", height: "56px", borderRadius: "50%", background: "linear-gradient(135deg, #22c55e, #16a34a)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", boxShadow: "0 4px 14px rgba(34,197,94,0.35)" }}>
+            <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          </div>
+          <h3 style={{ fontSize: "18px", fontWeight: "700", color: "#111827", margin: "0 0 4px" }}>Order Placed Successfully!</h3>
+          <p style={{ fontSize: "13px", color: "#6b7280", margin: "0 0 20px" }}>
+            {investMode === "sip" ? "Monthly SIP" : "One-Time Investment"} of <strong style={{ color: "#111827" }}>₹{parseFloat(investAmount).toLocaleString("en-IN")}</strong> set up
+          </p>
+
+          {/* Details card */}
+          <div style={{ background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: "12px", padding: "16px", marginBottom: "20px", textAlign: "left" }}>
+            {[
+              ["Fund", fundData.name.length > 30 ? fundData.name.slice(0, 30) + "…" : fundData.name],
+              ["Amount", `₹${parseFloat(investAmount).toLocaleString("en-IN")}`],
+              investMode === "lumpsum" ? ["Units (approx)", `${units} units`] : ["Frequency", "Monthly"],
+              ["NAV", `₹${fundData.currentNav.toFixed(2)}`],
+              investMode === "sip" ? ["First Instalment", formattedInstallmentDate] : null,
+              ["Order ID", orderId],
+              ["Date & Time", new Date().toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })],
+              ["Status", "✅ Processing"],
+            ].filter(Boolean).map(([label, value]) => (
+              <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 0", borderBottom: "1px solid #f3f4f6" }}>
+                <span style={{ fontSize: "12px", color: "#6b7280", fontWeight: "600" }}>{label}</span>
+                <span style={{ fontSize: "13px", color: "#111827", fontWeight: "600", textAlign: "right", maxWidth: "55%" }}>{value}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Buttons */}
+          <button type="button"
+            onClick={() => navigate("/portfolio")}
+            style={{ width: "100%", background: "#6C3AED", color: "#fff", border: "none", borderRadius: "10px", padding: "12px", fontSize: "14px", fontWeight: "700", cursor: "pointer", marginBottom: "8px" }}>
+            View Portfolio →
+          </button>
+          <button type="button"
+            onClick={() => { setInvestSuccess(false); setInvestMode("sip"); }}
+            style={{ width: "100%", background: "transparent", color: "#6C3AED", border: "1.5px solid #6C3AED", borderRadius: "10px", padding: "11px", fontSize: "14px", fontWeight: "700", cursor: "pointer" }}>
+            Invest More
+          </button>
         </div>
-        <button type="button" className="mf-success-close" onClick={() => { setInvestSuccess(false); setInvestMode("sip"); }}>New Investment</button>
-      </div>
-    );
+      );
+    }
 
     // REDEEM SUCCESS
     if (redeemSuccess) return (

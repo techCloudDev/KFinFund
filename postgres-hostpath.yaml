@@ -10,11 +10,15 @@ spec:
   selector:
     matchLabels:
       app: postgres
+  strategy:
+    type: Recreate
   template:
     metadata:
       labels:
         app: postgres
     spec:
+      nodeSelector:
+        kubernetes.io/hostname: ip-192-168-68-227.ap-south-1.compute.internal
       containers:
       - name: postgres
         image: postgres:15-alpine
@@ -29,9 +33,13 @@ spec:
           value: "postgres"
         - name: POSTGRES_MULTIPLE_DATABASES
           value: "kfinfund_users,kfinfund_transactions,kfinfund_sips"
+        - name: PGDATA
+          value: /var/lib/postgresql/data/pgdata
         volumeMounts:
         - mountPath: /var/lib/postgresql/data
           name: postgres-storage
       volumes:
       - name: postgres-storage
-        emptyDir: {}
+        hostPath:
+          path: /mnt/postgres-data
+          type: DirectoryOrCreate

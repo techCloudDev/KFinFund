@@ -1,3 +1,4 @@
+import { apiFetch } from "../../utils/api";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import DashboardLayout from "../mutual-fund/component/DashboardLayout";
@@ -67,7 +68,7 @@ const fetchLiveNav = async (fundName) => {
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 5000);
-    const res = await fetch(`https://api.mfapi.in/mf/${code}`, { signal: controller.signal });
+    const res = await apiFetch(`https://api.mfapi.in/mf/${code}`, { signal: controller.signal });
     clearTimeout(timer);
     if (!res.ok) return null;
     const json = await res.json();
@@ -99,9 +100,10 @@ function RedeemModal({ fund, onClose, onSuccess }) {
     setLoading(true); setError("");
     const token = localStorage.getItem("token");
     try {
-      const res = await fetch(`${TRANSACTION_SERVICE_URL}/api/transactions/redeem`, {
+      const res = await apiFetch(`${TRANSACTION_SERVICE_URL}/api/transactions/redeem`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        headers: { "Content-Type": "application/json",
+},
         body: JSON.stringify({ fund_id: fund.name, units: parseFloat(units), nav: parseFloat(currentNav.toFixed(2)) }),
       });
       const data = await res.json();
@@ -179,8 +181,8 @@ export default function PortfolioPage() {
 
     try {
       const [portfolioRes, sipRes] = await Promise.all([
-        fetch(`${TRANSACTION_SERVICE_URL}/api/transactions/portfolio`, { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()),
-        fetch(`${SIP_SERVICE_URL}/api/sips/my-sips`, { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()).catch(() => ({ sips: [] })),
+        apiFetch(`${TRANSACTION_SERVICE_URL}/api/transactions/portfolio`).then(r => r.json()),
+        apiFetch(`${SIP_SERVICE_URL}/api/sips/my-sips`).then(r => r.json()).catch(() => ({ sips: [] })),
       ]);
 
       const portfolio = portfolioRes.portfolio || [];

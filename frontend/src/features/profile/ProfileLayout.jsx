@@ -1,3 +1,4 @@
+import { apiFetch } from "../../utils/api";
 import { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import DashboardLayout from "../mutual-fund/component/DashboardLayout";
@@ -19,6 +20,7 @@ export default function ProfileLayout({ children, pageTitle = "Profile" }) {
   const [userEmail, setUserEmail] = useState("");
   const [kycStatus, setKycStatus] = useState(null);
 
+  // ✅ Added location.pathname — refetches KYC status on every page navigation
   useEffect(() => {
     const tokenData = getTokenData();
     if (tokenData?.email) {
@@ -27,14 +29,16 @@ export default function ProfileLayout({ children, pageTitle = "Profile" }) {
     }
     const token = localStorage.getItem("token");
     if (token) {
-      fetch(`${KYC_SERVICE_URL}/api/kyc/status`, {
-        headers: { Authorization: `Bearer ${token}` }
-      }).then(r => r.json()).then(d => setKycStatus(d.status || "NOT_SUBMITTED")).catch(() => setKycStatus("NOT_SUBMITTED"));
+      apiFetch(`${KYC_SERVICE_URL}/api/kyc/status`)
+        .then(r => r.json())
+        .then(d => setKycStatus(d.status || "NOT_SUBMITTED"))
+        .catch(() => setKycStatus("NOT_SUBMITTED"));
     }
-  }, []);
+  }, [location.pathname]); // ✅ Refetch on every navigation
 
   const handleLogout = () => {
     localStorage.removeItem("token");
+    localStorage.removeItem("refreshToken");
     localStorage.removeItem("watchlist");
     navigate("/");
   };
@@ -51,7 +55,6 @@ export default function ProfileLayout({ children, pageTitle = "Profile" }) {
     NOT_SUBMITTED: { bg: "#fee2e2", color: "#b91c1c", text: "Required" },
   }[kycStatus] || null;
 
-  // ── Profit & Loss REMOVED — it's in main sidebar as "Reports" ──
   const profileNavItems = [
     {
       name: "Personal Details",

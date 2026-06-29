@@ -1,3 +1,4 @@
+import { apiFetch } from "../../utils/api";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import ProfileLayout from "./ProfileLayout";
@@ -66,9 +67,9 @@ export default function ChangePassword() {
 
     setLoading(true);
     try {
-      const res = await fetch(`${USER_SERVICE_URL}/api/users/change-password`, {
+      const res = await apiFetch(`${USER_SERVICE_URL}/api/users/change-password`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ oldPassword, newPassword }),
       });
       const data = await res.json();
@@ -82,6 +83,7 @@ export default function ChangePassword() {
       // Clear token and redirect to login after 2 seconds
       setTimeout(() => {
         localStorage.removeItem("token");
+        localStorage.removeItem("refreshToken");
         localStorage.removeItem("watchlist");
         navigate("/login");
       }, 2000);

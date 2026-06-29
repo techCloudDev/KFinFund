@@ -3,10 +3,8 @@ const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
-
 const connectDB = require("./config/db");
 const kycRoutes = require("./routes/kycRoutes");
-
 const app = express();
 const PORT = process.env.PORT || 3002;
 
@@ -24,11 +22,9 @@ app.use(cors({
 }));
 
 // ── Body Parser ──
-// NOTE: Do NOT add express.json() before multer routes
-// multer handles multipart/form-data parsing itself
 app.use((req, res, next) => {
   if (req.headers['content-type']?.includes('multipart/form-data')) {
-    return next(); // skip json parser for file uploads
+    return next();
   }
   express.json({ limit: "10kb" })(req, res, next);
 });
@@ -36,7 +32,7 @@ app.use((req, res, next) => {
 // ── Global Rate Limiter ──
 const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100,
+  max: 500, // ✅ Increased from 100
   message: { error: "Too many requests, please try again later." },
   standardHeaders: true,
   legacyHeaders: false,
@@ -46,7 +42,7 @@ app.use(globalLimiter);
 // ── KYC Rate Limiter ──
 const kycLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 12,
+  max: 200, // ✅ Increased from 12 — was causing 429 errors
   message: { error: "Too many KYC requests, please try again after 15 minutes." },
   standardHeaders: true,
   legacyHeaders: false,

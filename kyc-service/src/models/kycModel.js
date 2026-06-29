@@ -2,61 +2,31 @@ const mongoose = require("mongoose");
 
 const kycSchema = new mongoose.Schema(
   {
-    user_id: {
-      type: String,
-      required: true,
-      unique: true,
-      index: true
-    },
-    full_name: {
-      type: String,
-      required: true,
-      trim: true
-    },
-    pan_number: {
-      type: String,
-      required: true,
-      uppercase: true,
-      trim: true
-    },
-    aadhaar_number: {
-      type: String,
-      required: true,
-      trim: true
-    },
-    address: {
-      type: String,
-      required: true
-    },
+    user_id: { type: String, required: true, unique: true, index: true },
+    full_name: { type: String, required: true, trim: true },
+    pan_number: { type: String, required: true, uppercase: true, trim: true },
+    aadhaar_number: { type: String, required: true, trim: true },
+    address: { type: String, required: true },
+
+    // ✅ New fields added to Step 1
+    date_of_birth: { type: String },
+    gender: { type: String, enum: ["MALE", "FEMALE", "OTHER"], default: null },
+    marital_status: { type: String, enum: ["SINGLE", "MARRIED", "DIVORCED", "WIDOWED"], default: null },
+    occupation: { type: String, enum: ["SALARIED", "SELF_EMPLOYED", "BUSINESS", "STUDENT", "RETIRED", "HOMEMAKER", "OTHER"], default: null },
+
     documents: {
-      selfie_url: {
-        type: String,
-        required: true
-      },
-      signature_url: {
-        type: String,
-        required: true
-      }
+      selfie_url: { type: String, required: true },
+      signature_url: { type: String, required: true }
     },
     financials: {
-      bank_account_number: {
-        type: String,
-        required: true
-      },
-      ifsc_code: {
-        type: String,
-        required: true,
-        uppercase: true
-      },
+      bank_account_number: { type: String, required: true },
+      ifsc_code: { type: String, required: true, uppercase: true },
       income_bracket: {
         type: String,
         enum: ["NOT_DECLARED", "BELOW_1L", "1L_5L", "5L_10L", "ABOVE_10L"],
         default: "NOT_DECLARED"
       },
-      pep_status: {
-        type: Boolean,
-        default: false
-      }
+      pep_status: { type: Boolean, default: false }
     },
     status: {
       type: String,

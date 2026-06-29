@@ -1,3 +1,4 @@
+import { apiFetch } from "../../utils/api";
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import DashboardLayout from "../mutual-fund/component/DashboardLayout";
@@ -125,9 +126,7 @@ export default function SipPage() {
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) { navigate("/login"); return; }
-    fetch(`${SIP_SERVICE_URL}/api/sips/my-sips`, {
-      headers: { Authorization: `Bearer ${token}` }
-    })
+    apiFetch(`${SIP_SERVICE_URL}/api/sips/my-sips`)
       .then(res => res.json())
       .then(data => {
         const list = data.sips || (Array.isArray(data) ? data : []);
@@ -142,9 +141,9 @@ export default function SipPage() {
     const token = localStorage.getItem("token");
     setCancellingId(sipId);
     try {
-      const res = await fetch(`${SIP_SERVICE_URL}/api/sips/${sipId}/cancel`, {
+      const res = await apiFetch(`${SIP_SERVICE_URL}/api/sips/${sipId}/cancel`, {
         method: "PATCH",
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { "Content-Type": "application/json" }
       });
       setSips(prev => prev.filter(s => s.id !== sipId));
     } catch {
