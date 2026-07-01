@@ -17,6 +17,7 @@ import LogoutPage from './features/profile/LogoutPage';
 import PortfolioPage from './features/portfolio/PortfolioPage';
 import TransactionPage from './features/transactions/TransactionPage';
 import SipPage from './features/sip/SipPage';
+import ReturnCalculatorPage from './features/return-calculator/ReturnCalculatorPage';
 import './App.css';
 
 function ProtectedRoute({ children }) {
@@ -54,6 +55,7 @@ function App() {
           <Route path="/reports" element={<Navigate to="/user/profile/report" replace />} />
           <Route path="/user/profile/change-password" element={<ProtectedRoute><ChangePassword /></ProtectedRoute>} />
           <Route path="/user/profile/kyc" element={<ProtectedRoute><ProfileKycPage /></ProtectedRoute>} />
+          <Route path="/return-calculator" element={<ReturnCalculatorPage />} />
           <Route path="/help" element={<HelpPage />} />
           <Route path="/support" element={<Navigate to="/help" replace />} />
           <Route path="/user/logout" element={<LogoutPage />} />
