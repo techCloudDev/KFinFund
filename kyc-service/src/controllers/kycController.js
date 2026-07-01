@@ -10,7 +10,7 @@ const NOTIFICATION_SERVICE_URL = process.env.NOTIFICATION_SERVICE_URL || "http:/
 // ── Sandbox credentials ────────────────────────────────────────────
 const SANDBOX_API_KEY    = process.env.SANDBOX_API_KEY    || "";
 const SANDBOX_API_SECRET = process.env.SANDBOX_API_SECRET || "";
-const SANDBOX_BASE_URL   = "https://test-api.sandbox.co.in"; // test env
+const SANDBOX_BASE_URL = "https://api.sandbox.co.in";
 
 const ensureKycColumn = async () => {
   try {
