@@ -10,13 +10,24 @@ COPY . .
 ARG VITE_USER_API
 ENV VITE_USER_API=$VITE_USER_API
 
+ARG VITE_KYC_API
+ENV VITE_KYC_API=$VITE_KYC_API
+
+ARG VITE_TRANSACTION_API
+ENV VITE_TRANSACTION_API=$VITE_TRANSACTION_API
+
+ARG VITE_SIP_API
+ENV VITE_SIP_API=$VITE_SIP_API
+
+ARG VITE_NOTIFICATION_API
+ENV VITE_NOTIFICATION_API=$VITE_NOTIFICATION_API
+
 RUN npm run build
 
 FROM nginx:alpine
 
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# nginx config to handle React Router
 RUN echo 'server { \
   listen 80; \
   location / { \
