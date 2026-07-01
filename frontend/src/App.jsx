@@ -18,6 +18,8 @@ import TransactionPage from './features/transactions/TransactionPage';
 import SipPage from './features/sip/SipPage';
 import NotificationsPage from './features/notifications/NotificationsPage';
 import Calculators, { SipCalculator, LumpsumCalculator } from './features/calculators/Calculators';
+import ForgotPassword from './features/auth/pages/ForgotPassword';
+import ResetPassword from './features/auth/pages/ResetPassword';
 import './App.css';
 
 function ProtectedRoute({ children }) {
@@ -71,6 +73,8 @@ function App() {
           <Route path="/help" element={<HelpPage />} />
           <Route path="/support" element={<Navigate to="/help" replace />} />
           <Route path="/user/logout" element={<LogoutPage />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
         </Routes>
       </main>
     </BrowserRouter>

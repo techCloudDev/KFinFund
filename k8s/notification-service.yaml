@@ -23,7 +23,7 @@ spec:
             - name: MONGO_URI
               value: "mongodb://mongodb-service:27017/kfinfund_notifications"
             - name: RESEND_API_KEY
-              value: "your_new_resend_api_key_here"
+              value: re_eUi8G84L_JQm9kcJnpGXu5yHDyyi9tByn
             - name: JWT_SECRET
               value: "kfinfund_secret_key_2026"
             - name: PORT

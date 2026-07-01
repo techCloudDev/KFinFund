@@ -34,6 +34,11 @@ spec:
               value: "kfinfund_secret_key_2026"
             - name: PORT
               value: "3001"
+            - name: RESEND_API_KEY
+              value: re_eUi8G84L_JQm9kcJnpGXu5yHDyyi9tByn
+            - name: FRONTEND_URL
+              value: "http://a8bd375800d1f42bd860ba47a5513716-1143135270.ap-south-1.elb.amazonaws.com"
+
 ---
 apiVersion: v1
 kind: Service
