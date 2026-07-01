@@ -1,4 +1,3 @@
-// Add this at the top of App.jsx
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { LandingPage } from './features/landing/pages/Landpage';
 import Register from './features/auth/pages/register';
@@ -17,6 +16,8 @@ import LogoutPage from './features/profile/LogoutPage';
 import PortfolioPage from './features/portfolio/PortfolioPage';
 import TransactionPage from './features/transactions/TransactionPage';
 import SipPage from './features/sip/SipPage';
+import NotificationsPage from './features/notifications/NotificationsPage';
+import Calculators, { SipCalculator, LumpsumCalculator } from './features/calculators/Calculators';
 import './App.css';
 
 function ProtectedRoute({ children }) {
@@ -48,6 +49,19 @@ function App() {
           <Route path="/user/portfolio" element={<Navigate to="/portfolio" replace />} />
           <Route path="/transactions" element={<ProtectedRoute><TransactionPage /></ProtectedRoute>} />
           <Route path="/user/transaction" element={<Navigate to="/transactions" replace />} />
+          <Route path="/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
+
+          {/* ── Calculators ────────────────────────────────────────────────
+              /calculators/sip     → PUBLIC — non-logged-in users, PublicLayout
+              /calculators/lumpsum → PUBLIC — non-logged-in users, PublicLayout
+              /calculators         → PROTECTED — logged-in users, DashboardLayout
+                                     Sidebar link points here; fund detail page
+                                     also links here with ?fundName=&return= params
+          ──────────────────────────────────────────────────────────────── */}
+          <Route path="/calculators/sip" element={<SipCalculator />} />
+          <Route path="/calculators/lumpsum" element={<LumpsumCalculator />} />
+          <Route path="/calculators" element={<ProtectedRoute><Calculators /></ProtectedRoute>} />
+
           <Route path="/user/profile" element={<Navigate to="/user/profile/basic-details" replace />} />
           <Route path="/user/profile/basic-details" element={<ProtectedRoute><BasicDetails /></ProtectedRoute>} />
           <Route path="/user/profile/report" element={<ProtectedRoute><ReportPage /></ProtectedRoute>} />

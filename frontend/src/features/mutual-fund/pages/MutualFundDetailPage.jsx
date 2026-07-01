@@ -5,9 +5,9 @@ import DashboardLayout from "../component/DashboardLayout";
 import PublicLayout from "../component/PublicLayout";
 import { AMC_LOGOS } from "../component/amc_logo";
 import FundChart from "../component/FundChart";
+import { useKyc } from "../../../utils/KycContext";
 import "../mutual-fund.css";
 
-const KYC_SERVICE_URL = import.meta.env.VITE_KYC_API || "http://localhost:4002";
 const TRANSACTION_API  = import.meta.env.VITE_TRANSACTION_API || "http://localhost:4003";
 const SIP_API          = import.meta.env.VITE_SIP_API || "http://localhost:4004";
 
@@ -43,10 +43,11 @@ const fetchWithRetry = async (url, attempts = 3) => {
   }
 };
 
-export function MutualFundDetailPage() {
-  const { schemeCode } = useParams();
+// ── Inner component — only rendered when wrapped by DashboardLayout (logged in),
+// so useKyc() always has a provider above it. ──
+function MutualFundDetailLoggedIn({ schemeCode }) {
   const navigate = useNavigate();
-  const isLoggedIn = !!localStorage.getItem("token");
+  const isLoggedIn = true;
 
   const [loading, setLoading]           = useState(true);
   const [fundData, setFundData]         = useState(null);
@@ -66,22 +67,13 @@ export function MutualFundDetailPage() {
   const [redeemSuccess, setRedeemSuccess] = useState(false);
   const [redeemTxId, setRedeemTxId]       = useState("");
 
-  // user state
-  const [kycStatus, setKycStatus]     = useState(null);
+  // ✅ Read KYC status from shared context — no independent fetch here anymore.
+  const { kycStatus } = useKyc();
   const [userHolding, setUserHolding] = useState(null); // holding for THIS fund
-
-  // ── KYC status ──
-  useEffect(() => {
-    if (!isLoggedIn) { setKycStatus("NOT_LOGGED_IN"); return; }
-    const token = localStorage.getItem("token");
-    apiFetch(`${KYC_SERVICE_URL}/api/kyc/status`)
-      .then(r => r.json()).then(d => setKycStatus(d.status || "NOT_SUBMITTED")).catch(() => setKycStatus("NOT_SUBMITTED"));
-  }, [isLoggedIn]);
 
   // ── Portfolio check — does user hold THIS fund? ──
   useEffect(() => {
-    if (!isLoggedIn || kycStatus !== "APPROVED" || !fundData) return;
-    const token = localStorage.getItem("token");
+    if (kycStatus !== "APPROVED" || !fundData) return;
     apiFetch(`${TRANSACTION_API}/api/transactions/portfolio`)
       .then(r => r.json())
       .then(data => {
@@ -91,7 +83,7 @@ export function MutualFundDetailPage() {
         setUserHolding(holding || null);
       })
       .catch(() => setUserHolding(null));
-  }, [isLoggedIn, kycStatus, fundData]);
+  }, [kycStatus, fundData]);
 
   // ── SIP date helpers ──
   const { daysInNextMonth, nextMonthName, nextMonthYear, nextMonthIndex } = useMemo(() => {
@@ -135,7 +127,6 @@ export function MutualFundDetailPage() {
   });
   const isWatchlisted = useMemo(() => watchlist.some(item => String(item.code) === String(schemeCode)), [watchlist, schemeCode]);
   const toggleWatchlist = () => {
-    if (!isLoggedIn) { navigate("/login"); return; }
     const updated = isWatchlisted
       ? watchlist.filter(item => String(item.code) !== String(schemeCode))
       : [...watchlist, { code: fundData.code, name: fundData.name, fundHouse: fundData.fundHouse, category: fundData.category, type: fundData.type, logo: fundData.logo, risk: fundData.risk, currentNav: fundData.currentNav, cagr3Y: fundData.cagr3Y }];
@@ -255,15 +246,14 @@ export function MutualFundDetailPage() {
 
   const handleInvestSubmit = async (e) => {
     e.preventDefault();
-    const token = localStorage.getItem("token");
     setInvestLoading(true);
     try {
       if (investMode === "lumpsum") {
         const res = await apiFetch(`${TRANSACTION_API}/api/transactions/buy`, {
           method: "POST",
-          headers: { "Content-Type": "application/json",
-},
-          body: JSON.stringify({ fund_id: fundData.name, amount: parseFloat(investAmount), nav: fundData.currentNav }),
+          headers: { "Content-Type": "application/json" },
+          // ✅ scheme_code sent so future NAV lookups are exact, never name-search guesses
+          body: JSON.stringify({ fund_id: fundData.name, amount: parseFloat(investAmount), nav: fundData.currentNav, scheme_code: String(fundData.code) }),
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Transaction failed");
@@ -271,9 +261,8 @@ export function MutualFundDetailPage() {
       } else {
         const res = await apiFetch(`${SIP_API}/api/sips`, {
           method: "POST",
-          headers: { "Content-Type": "application/json",
-},
-          body: JSON.stringify({ fund_name: fundData.name, amount: parseFloat(investAmount), frequency: "MONTHLY", start_date: sipDate }),
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ fund_name: fundData.name, amount: parseFloat(investAmount), frequency: "MONTHLY", start_date: sipDate, scheme_code: String(fundData.code) }),
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "SIP creation failed");
@@ -282,7 +271,6 @@ export function MutualFundDetailPage() {
       setInvestSuccess(true);
       // Refresh holding after buy
       if (investMode === "lumpsum") {
-        const token2 = localStorage.getItem("token");
         apiFetch(`${TRANSACTION_API}/api/transactions/portfolio`)
           .then(r => r.json()).then(data => {
             const h = (data.portfolio || []).find(h => h.fund_id?.toLowerCase() === fundData.name?.toLowerCase());
@@ -301,14 +289,13 @@ export function MutualFundDetailPage() {
     if (userHolding && parseFloat(redeemUnits) > parseFloat(userHolding.total_units)) {
       alert(`You only have ${userHolding.total_units} units.`); return;
     }
-    const token = localStorage.getItem("token");
     setInvestLoading(true);
     try {
       const res = await apiFetch(`${TRANSACTION_API}/api/transactions/redeem`, {
         method: "POST",
-        headers: { "Content-Type": "application/json",
-},
-        body: JSON.stringify({ fund_id: fundData.name, units: parseFloat(redeemUnits), nav: fundData.currentNav }),
+        headers: { "Content-Type": "application/json" },
+        // ✅ scheme_code sent on redeem too so the record stays exact
+        body: JSON.stringify({ fund_id: fundData.name, units: parseFloat(redeemUnits), nav: fundData.currentNav, scheme_code: String(fundData.code) }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Redemption failed");
@@ -327,17 +314,6 @@ export function MutualFundDetailPage() {
 
   // ── Invest panel ──
   const renderInvestPanel = () => {
-    // NOT LOGGED IN
-    if (!isLoggedIn) return (
-      <div style={{ textAlign: "center", padding: "24px 0" }}>
-        <div style={{ fontSize: "40px", marginBottom: "12px" }}>🔐</div>
-        <h3 style={{ fontSize: "16px", fontWeight: "700", color: "#111827", margin: "0 0 8px" }}>Login to Invest</h3>
-        <p style={{ fontSize: "13px", color: "#6b7280", marginBottom: "16px" }}>Create an account or login to start investing.</p>
-        <button onClick={() => navigate("/login")} style={{ background: "#6C3AED", color: "#fff", border: "none", borderRadius: "8px", padding: "10px 24px", fontSize: "14px", fontWeight: "700", cursor: "pointer", width: "100%", marginBottom: "8px" }}>Login →</button>
-        <button onClick={() => navigate("/register")} style={{ background: "transparent", color: "#6C3AED", border: "1.5px solid #6C3AED", borderRadius: "8px", padding: "10px 24px", fontSize: "14px", fontWeight: "700", cursor: "pointer", width: "100%" }}>Create Account</button>
-      </div>
-    );
-
     // KYC NOT SUBMITTED
     if (kycStatus === "NOT_SUBMITTED") return (
       <div style={{ textAlign: "center", padding: "16px 0" }}>
@@ -600,7 +576,7 @@ export function MutualFundDetailPage() {
     );
   };
 
-  const content = (
+  return (
     <>
       <button type="button" className="mf-back-btn" onClick={() => navigate("/mutual-fund")}
         style={{ marginBottom: "24px", display: "block" }}>
@@ -675,6 +651,24 @@ export function MutualFundDetailPage() {
                   </div>
                 ))}
               </div>
+              {/* ✅ Calculate Returns — passes this fund's real 3Y CAGR (falling
+                  back to 1Y/5Y if 3Y isn't available) to the calculator page,
+                  so projections use actual historical performance, not a guess. */}
+              <button
+                type="button"
+                onClick={() => {
+                  const rate = fundData.cagr3Y ?? fundData.cagr1Y ?? fundData.cagr5Y ?? 12;
+                  navigate(`/calculators?fundName=${encodeURIComponent(fundData.name)}&return=${rate}`);
+                }}
+                style={{
+                  width: "100%", marginTop: "16px", background: "#f3f0ff", color: "#6C3AED",
+                  border: "1.5px solid #c4b5fd", borderRadius: "10px", padding: "12px",
+                  fontSize: "13px", fontWeight: "700", cursor: "pointer",
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
+                }}
+              >
+                📊 Calculate Returns for This Fund →
+              </button>
             </div>
           </div>
 
@@ -683,11 +677,279 @@ export function MutualFundDetailPage() {
       )}
     </>
   );
+}
+
+// ── Public (not logged in) variant — KycContext isn't needed here since
+// there's no KYC panel to show, just a login prompt. ──
+function MutualFundDetailLoggedOut({ schemeCode }) {
+  const navigate = useNavigate();
+  const [loading, setLoading]           = useState(true);
+  const [fundData, setFundData]         = useState(null);
+  const [error, setError]               = useState("");
+  const [attemptCount, setAttemptCount] = useState(0);
+  const [timeframe, setTimeframe]       = useState("1Y");
+
+  const getAmcLogoLocal = getAmcLogo;
+  const getRiskCategoryLocal = getRiskCategory;
+
+  const getNavYearsAgo = (navHistory, years) => {
+    if (!navHistory || navHistory.length === 0) return null;
+    const parts = navHistory[0].date.split("-");
+    const latestDate = new Date(parts[2], parts[1] - 1, parts[0]);
+    const targetDate = new Date(latestDate);
+    targetDate.setFullYear(latestDate.getFullYear() - years);
+    let closestPoint = null, minDiff = Infinity;
+    for (const point of navHistory) {
+      const p = point.date.split("-");
+      const pDate = new Date(p[2], p[1] - 1, p[0]);
+      const diff = Math.abs(pDate.getTime() - targetDate.getTime());
+      if (diff < minDiff) { minDiff = diff; closestPoint = point; }
+    }
+    if (minDiff > 45 * 24 * 60 * 60 * 1000) return null;
+    return closestPoint;
+  };
+
+  const calculateCAGR = (currentNav, pastNav, years) => {
+    if (!currentNav || !pastNav || pastNav <= 0) return null;
+    return parseFloat(((Math.pow(currentNav / pastNav, 1 / years) - 1) * 100).toFixed(2));
+  };
+
+  const getHistoricalNavForTimeframe = (navHistory, tf) => {
+    if (!navHistory || navHistory.length === 0) return null;
+    const parts = navHistory[0].date.split("-");
+    const latestDate = new Date(parts[2], parts[1] - 1, parts[0]);
+    const targetDate = new Date(latestDate);
+    if (tf === "1M") targetDate.setMonth(latestDate.getMonth() - 1);
+    else if (tf === "6M") targetDate.setMonth(latestDate.getMonth() - 6);
+    else if (tf === "1Y") targetDate.setFullYear(latestDate.getFullYear() - 1);
+    else if (tf === "3Y") targetDate.setFullYear(latestDate.getFullYear() - 3);
+    else if (tf === "5Y") targetDate.setFullYear(latestDate.getFullYear() - 5);
+    else if (tf === "ALL") return navHistory[navHistory.length - 1];
+    let closestPoint = null, minDiff = Infinity;
+    for (const point of navHistory) {
+      const p = point.date.split("-");
+      const pDate = new Date(p[2], p[1] - 1, p[0]);
+      const diff = Math.abs(pDate.getTime() - targetDate.getTime());
+      if (diff < minDiff) { minDiff = diff; closestPoint = point; }
+    }
+    if (minDiff > 45 * 24 * 60 * 60 * 1000) return null;
+    return closestPoint;
+  };
+
+  const dynamicReturn = useMemo(() => {
+    if (!fundData?.rawHistory?.length) return null;
+    const history = fundData.rawHistory;
+    const currentNav = parseFloat(history[0].nav);
+    const pastPoint = getHistoricalNavForTimeframe(history, timeframe);
+    if (!pastPoint) return null;
+    const pastNav = parseFloat(pastPoint.nav);
+    const [d1, m1, y1] = history[0].date.split("-");
+    const [d2, m2, y2] = pastPoint.date.split("-");
+    const years = (new Date(y1, m1-1, d1) - new Date(y2, m2-1, d2)) / (365.25 * 24 * 60 * 60 * 1000);
+    let returnVal = 0, returnType = "";
+    if (timeframe === "1M" || timeframe === "6M") { returnVal = ((currentNav / pastNav) - 1) * 100; returnType = "Absolute Return"; }
+    else { returnVal = years > 0 ? (Math.pow(currentNav / pastNav, 1 / years) - 1) * 100 : ((currentNav / pastNav) - 1) * 100; returnType = "Annualized CAGR Return"; }
+    return { returnVal: parseFloat(returnVal.toFixed(2)), returnType, pastNav, pastDate: pastPoint.date, years: parseFloat(years.toFixed(2)) };
+  }, [fundData, timeframe]);
+
+  const fetchFundDetail = async () => {
+    setLoading(true); setError("");
+    try {
+      setAttemptCount(a => a + 1);
+      const res = await fetchWithRetry(`https://api.mfapi.in/mf/${schemeCode}`, 3);
+      if (!res.ok) throw new Error("This fund could not be found.");
+      const json = await res.json();
+      if (!json?.data?.length) throw new Error("no_data");
+      const parts = json.data[0].date.split("-");
+      const latestDate = new Date(parts[2], parts[1] - 1, parts[0]);
+      const daysSince = (new Date() - latestDate) / (1000 * 60 * 60 * 24);
+      if (daysSince > 60) throw new Error("stale");
+      const currentNav = parseFloat(json.data[0].nav);
+      const point1Y = getNavYearsAgo(json.data, 1);
+      const point3Y = getNavYearsAgo(json.data, 3);
+      const point5Y = getNavYearsAgo(json.data, 5);
+      const numericCode = parseInt(schemeCode, 10) || 100000;
+      setFundData({
+        code: json.meta.scheme_code, name: json.meta.scheme_name, fundHouse: json.meta.fund_house,
+        category: json.meta.scheme_category || "Mutual Fund", type: json.meta.scheme_type || "Open Ended",
+        logo: getAmcLogoLocal(json.meta.fund_house || json.meta.scheme_name),
+        currentNav, currentDate: json.data[0].date, risk: getRiskCategoryLocal(json.meta.scheme_name),
+        cagr1Y: calculateCAGR(currentNav, point1Y ? parseFloat(point1Y.nav) : null, 1),
+        cagr3Y: calculateCAGR(currentNav, point3Y ? parseFloat(point3Y.nav) : null, 3),
+        cagr5Y: calculateCAGR(currentNav, point5Y ? parseFloat(point5Y.nav) : null, 5),
+        aum: ((numericCode % 35) * 650 + 1200).toLocaleString("en-IN") + " Cr",
+        expenseRatio: ((numericCode % 13) * 0.08 + 0.35).toFixed(2) + "%",
+        minSip: numericCode % 2 === 0 ? "₹100" : "₹500",
+        exitLoad: "1.00% if redeemed within 365 days",
+        manager: numericCode % 3 === 0 ? "Mr. Rajeev Thakkar" : numericCode % 3 === 1 ? "Mr. Anupam Tiwari" : "Ms. Sohini Andani",
+        rawHistory: json.data || [],
+      });
+    } catch (err) {
+      setError(err.name === "AbortError" ? "timeout" : (err.message || "Unable to load fund details."));
+    } finally { setLoading(false); }
+  };
+
+  useEffect(() => { if (schemeCode) fetchFundDetail(); }, [schemeCode]);
+
+  const [watchlist] = useState(() => {
+    try { const stored = localStorage.getItem("watchlist"); return stored ? JSON.parse(stored) : []; }
+    catch { return []; }
+  });
+  const isWatchlisted = useMemo(() => watchlist.some(item => String(item.code) === String(schemeCode)), [watchlist, schemeCode]);
+
+  const renderError = () => {
+    const isTimeout = error === "timeout";
+    const isNoData  = error === "no_data";
+    const isStale   = error === "stale";
+    const icon    = isTimeout ? "⏱️" : isNoData || isStale ? "📭" : "⚠️";
+    const title   = isTimeout ? "Taking Longer Than Usual" : isNoData ? "Fund Data Unavailable" : isStale ? "Fund May Be Discontinued" : "Unable to Load Fund";
+    const message = isTimeout ? "The fund data server is responding slowly. Click Try Again — it usually loads on the 2nd attempt."
+      : isNoData ? "This fund returned no NAV data. It could be a temporary API issue. Please try again."
+      : isStale  ? "This fund has not been updated in over 60 days. It may have been discontinued or merged."
+      : error;
+    return (
+      <div className="mf-empty-state">
+        <div style={{ fontSize: "48px", marginBottom: "16px" }}>{icon}</div>
+        <div className="mf-empty-title" style={{ marginBottom: "8px" }}>{title}</div>
+        <div className="mf-empty-text" style={{ maxWidth: "360px", margin: "0 auto 24px", lineHeight: "1.6" }}>{message}</div>
+        <div style={{ display: "flex", gap: "12px", justifyContent: "center", flexWrap: "wrap" }}>
+          {(isTimeout || isNoData) && (
+            <button onClick={() => { setError(""); fetchFundDetail(); }}
+              style={{ background: "#6C3AED", color: "#fff", border: "none", borderRadius: "8px", padding: "10px 24px", fontSize: "14px", fontWeight: "700", cursor: "pointer" }}>
+              🔄 Try Again
+            </button>
+          )}
+          <button onClick={() => navigate("/mutual-fund")}
+            style={{ background: "transparent", color: "#6C3AED", border: "1.5px solid #6C3AED", borderRadius: "8px", padding: "10px 24px", fontSize: "14px", fontWeight: "700", cursor: "pointer" }}>
+            ← Back to List
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <>
+      <button type="button" className="mf-back-btn" onClick={() => navigate("/mutual-fund")}
+        style={{ marginBottom: "24px", display: "block" }}>
+        ← Back to List
+      </button>
+
+      {loading && (
+        <div className="mf-loader-container">
+          <div className="mf-spinner" />
+          {attemptCount > 1 && (
+            <div style={{ marginTop: "16px", fontSize: "13px", color: "#6b7280", textAlign: "center" }}>
+              Retrying... (attempt {attemptCount} of 3)
+            </div>
+          )}
+        </div>
+      )}
+
+      {error && !loading && renderError()}
+
+      {!loading && !error && fundData && (
+        <div className="mf-detail-grid">
+          <div>
+            <div className="mf-detail-card" style={{ marginBottom: "24px" }}>
+              <div className="mf-detail-header-card" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", width: "100%" }}>
+                <div style={{ display: "flex", gap: "16px" }}>
+                  <img src={fundData.logo} alt={fundData.fundHouse} className="mf-detail-logo" />
+                  <div className="mf-detail-title-box">
+                    <h2 className="mf-detail-scheme-name">{fundData.name}</h2>
+                    <div className="mf-detail-badge-row">
+                      <span className={`mf-badge mf-badge-${fundData.risk.toLowerCase()}`}>{fundData.risk} Risk</span>
+                      <span style={{ fontSize: "13px", color: "var(--mf-text-muted)", fontWeight: 600 }}>{fundData.type} • {fundData.category}</span>
+                    </div>
+                  </div>
+                </div>
+                <button type="button" onClick={() => navigate("/login")} style={{ display: "flex", alignItems: "center", gap: "6px", backgroundColor: isWatchlisted ? "rgba(239,68,68,0.08)" : "transparent", color: isWatchlisted ? "#EF4444" : "var(--mf-text-muted)", border: "1.5px solid", borderColor: isWatchlisted ? "#EF4444" : "var(--mf-border-color)", borderRadius: "20px", padding: "6px 14px", fontSize: "13px", fontWeight: "600", cursor: "pointer", whiteSpace: "nowrap", alignSelf: "center" }}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill={isWatchlisted ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+                  <span>{isWatchlisted ? "Watchlisted" : "Watchlist"}</span>
+                </button>
+              </div>
+              <div style={{ display: "flex", alignItems: "baseline", gap: "10px", marginTop: "16px", paddingTop: "16px", borderTop: "1px solid var(--mf-border-color)" }}>
+                <span style={{ fontSize: "28px", fontWeight: 800, color: "var(--mf-text-dark)" }}>₹{fundData.currentNav.toFixed(2)}</span>
+                <span style={{ fontSize: "14px", color: "var(--mf-text-muted)" }}>Latest NAV ({fundData.currentDate})</span>
+              </div>
+            </div>
+
+            <FundChart rawHistory={fundData.rawHistory} themeColor="#6C3AED" timeframe={timeframe} setTimeframe={setTimeframe} />
+
+            {dynamicReturn && (
+              <div className="mf-detail-card" style={{ marginBottom: "24px" }}>
+                <h3 style={{ fontSize: "16px", fontWeight: 700, marginBottom: "16px", color: "var(--mf-text-dark)", textAlign: "left" }}>NAV Return Analysis ({timeframe})</h3>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px", backgroundColor: "#FAFBFD", borderRadius: "12px", border: "1px solid var(--mf-border-color)", flexWrap: "wrap", gap: "16px" }}>
+                  <div>
+                    <span style={{ fontSize: "13px", color: "var(--mf-text-muted)", fontWeight: 500, display: "block", marginBottom: "4px" }}>{dynamicReturn.returnType}</span>
+                    <span style={{ fontSize: "32px", fontWeight: 800, color: dynamicReturn.returnVal >= 0 ? "#10B981" : "#EF4444" }}>{dynamicReturn.returnVal >= 0 ? "+" : ""}{dynamicReturn.returnVal}%</span>
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <div style={{ fontSize: "13px", color: "var(--mf-text-dark)", marginBottom: "4px" }}>From: <strong>₹{dynamicReturn.pastNav.toFixed(2)}</strong> ({dynamicReturn.pastDate})</div>
+                    <div style={{ fontSize: "13px", color: "var(--mf-text-dark)" }}>To: <strong>₹{fundData.currentNav.toFixed(2)}</strong> ({fundData.currentDate})</div>
+                    {dynamicReturn.years > 0 && <div style={{ fontSize: "12px", color: "var(--mf-text-muted)", fontStyle: "italic", marginTop: "2px" }}>Period: {dynamicReturn.years} years</div>}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="mf-detail-card">
+              <h3 style={{ fontSize: "16px", fontWeight: 700, marginBottom: "16px", color: "var(--mf-text-dark)", textAlign: "left" }}>Scheme Key Info</h3>
+              <div className="mf-details-list">
+                {[["AUM", fundData.aum], ["Expense Ratio", fundData.expenseRatio], ["Min. SIP", fundData.minSip], ["Exit Load", fundData.exitLoad], ["Fund Manager", fundData.manager]].map(([label, value]) => (
+                  <div key={label} className="mf-details-item">
+                    <span className="mf-details-label">{label}</span>
+                    <span className="mf-details-value">{value}</span>
+                  </div>
+                ))}
+              </div>
+              {/* ✅ Calculate Returns — /calculators requires login, so a
+                  not-logged-in user is sent to login first. */}
+              <button
+                type="button"
+                onClick={() => navigate("/login")}
+                style={{
+                  width: "100%", marginTop: "16px", background: "#f3f0ff", color: "#6C3AED",
+                  border: "1.5px solid #c4b5fd", borderRadius: "10px", padding: "12px",
+                  fontSize: "13px", fontWeight: "700", cursor: "pointer",
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
+                }}
+              >
+                📊 Calculate Returns for This Fund →
+              </button>
+            </div>
+          </div>
+
+          <div className="mf-invest-card">
+            <div style={{ textAlign: "center", padding: "24px 0" }}>
+              <div style={{ fontSize: "40px", marginBottom: "12px" }}>🔐</div>
+              <h3 style={{ fontSize: "16px", fontWeight: "700", color: "#111827", margin: "0 0 8px" }}>Login to Invest</h3>
+              <p style={{ fontSize: "13px", color: "#6b7280", marginBottom: "16px" }}>Create an account or login to start investing.</p>
+              <button onClick={() => navigate("/login")} style={{ background: "#6C3AED", color: "#fff", border: "none", borderRadius: "8px", padding: "10px 24px", fontSize: "14px", fontWeight: "700", cursor: "pointer", width: "100%", marginBottom: "8px" }}>Login →</button>
+              <button onClick={() => navigate("/register")} style={{ background: "transparent", color: "#6C3AED", border: "1.5px solid #6C3AED", borderRadius: "8px", padding: "10px 24px", fontSize: "14px", fontWeight: "700", cursor: "pointer", width: "100%" }}>Create Account</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+// ── Top-level export — picks the right layout + inner component.
+// DashboardLayout (logged-in path) renders <KycProvider> internally,
+// so MutualFundDetailLoggedIn can safely call useKyc(). ──
+export function MutualFundDetailPage() {
+  const { schemeCode } = useParams();
+  const isLoggedIn = !!localStorage.getItem("token");
 
   return isLoggedIn ? (
-    <DashboardLayout pageTitle="Mutual Fund Details">{content}</DashboardLayout>
+    <DashboardLayout pageTitle="Mutual Fund Details">
+      <MutualFundDetailLoggedIn schemeCode={schemeCode} />
+    </DashboardLayout>
   ) : (
-    <PublicLayout pageTitle="Mutual Fund Details">{content}</PublicLayout>
+    <PublicLayout pageTitle="Mutual Fund Details">
+      <MutualFundDetailLoggedOut schemeCode={schemeCode} />
+    </PublicLayout>
   );
 }
 

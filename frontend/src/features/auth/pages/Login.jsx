@@ -42,6 +42,7 @@ function Login() {
         if (data.refreshToken) {
           localStorage.setItem("refreshToken", data.refreshToken);
         }
+        localStorage.removeItem("kycStatus"); // ✅ Clear KYC cache on new login
         navigate("/dashboard");
       } else {
         // ✅ Map backend error codes to friendly messages

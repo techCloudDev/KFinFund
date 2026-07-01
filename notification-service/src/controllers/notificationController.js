@@ -22,9 +22,26 @@ const getNotifications = async (req, res) => {
   try {
     const notifications = await Notification.find({
       userId: req.params.userId
-    });
+    }).sort({ createdAt: -1 }); // ✅ newest first
 
     res.json(notifications);
+  } catch (error) {
+    res.status(500).json({
+      error: error.message
+    });
+  }
+};
+
+// ✅ Get Unread Count — lightweight, used by the bell icon for polling
+// instead of fetching the full notification list every time.
+const getUnreadCount = async (req, res) => {
+  try {
+    const count = await Notification.countDocuments({
+      userId: req.params.userId,
+      isRead: false
+    });
+
+    res.json({ count });
   } catch (error) {
     res.status(500).json({
       error: error.message
@@ -43,6 +60,22 @@ const markAsRead = async (req, res) => {
       );
 
     res.json(notification);
+  } catch (error) {
+    res.status(500).json({
+      error: error.message
+    });
+  }
+};
+
+// ✅ Mark ALL notifications as read for a user — used when bell dropdown opens
+const markAllAsRead = async (req, res) => {
+  try {
+    await Notification.updateMany(
+      { userId: req.params.userId, isRead: false },
+      { isRead: true }
+    );
+
+    res.json({ message: "All notifications marked as read" });
   } catch (error) {
     res.status(500).json({
       error: error.message
@@ -70,6 +103,8 @@ const deleteNotification = async (req, res) => {
 module.exports = {
   createNotification,
   getNotifications,
+  getUnreadCount,
   markAsRead,
+  markAllAsRead,
   deleteNotification
 };

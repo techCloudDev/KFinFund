@@ -6,6 +6,7 @@ const rateLimit = require("express-rate-limit");
 
 const pool = require("./config/db");
 const sipRoutes = require("./routes/sipRoutes");
+const { startSipReminderScheduler } = require("./jobs/sipReminderJob");
 
 const app = express();
 
@@ -69,4 +70,6 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 3004;
 app.listen(PORT, () => {
   console.log(`✅ SIP Service running on port ${PORT}`);
+  // ✅ Start the daily SIP-due reminder scheduler
+  startSipReminderScheduler();
 });

@@ -29,10 +29,17 @@ export default function ProfileLayout({ children, pageTitle = "Profile" }) {
     }
     const token = localStorage.getItem("token");
     if (token) {
+      // ✅ Use cached KYC status first to avoid 429 rate limit
+      const cachedKyc = localStorage.getItem("kycStatus");
+      if (cachedKyc) setKycStatus(cachedKyc);
       apiFetch(`${KYC_SERVICE_URL}/api/kyc/status`)
         .then(r => r.json())
-        .then(d => setKycStatus(d.status || "NOT_SUBMITTED"))
-        .catch(() => setKycStatus("NOT_SUBMITTED"));
+        .then(d => {
+          const status = d.status || "NOT_SUBMITTED";
+          setKycStatus(status);
+          localStorage.setItem("kycStatus", status);
+        })
+        .catch(() => setKycStatus(cachedKyc || "NOT_SUBMITTED"));
     }
   }, [location.pathname]); // ✅ Refetch on every navigation
 

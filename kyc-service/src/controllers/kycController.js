@@ -5,6 +5,8 @@ const pool = new Pool({
   connectionString: process.env.POSTGRES_USER_URL || `postgresql://postgres:postgres123@postgres-service:5432/kfinfund_users`,
 });
 
+const NOTIFICATION_SERVICE_URL = process.env.NOTIFICATION_SERVICE_URL || "http://notification-service:3005";
+
 const ensureKycColumn = async () => {
   try {
     await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS kyc_status VARCHAR(20) DEFAULT 'NOT_SUBMITTED'`);
@@ -13,6 +15,21 @@ const ensureKycColumn = async () => {
   }
 };
 ensureKycColumn();
+
+// ✅ Internal server-to-server notification call. Failures here must
+// NEVER block the actual KYC approval — wrapped so a notification-service
+// outage can't break the core flow.
+const notifyUser = async (userId, title, message, type) => {
+  try {
+    await fetch(`${NOTIFICATION_SERVICE_URL}/api/notifications`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: Number(userId), title, message, type }),
+    });
+  } catch (e) {
+    console.error("⚠️ Failed to send notification (non-blocking):", e.message);
+  }
+};
 
 const validateKycInputs = (body, files) => {
   const { pan_number, aadhaar_number, address, full_name, bank_account_number, ifsc_code } = body;
@@ -95,6 +112,14 @@ const submitKyc = async (req, res) => {
 
     await newKyc.save();
     await saveKycStatusToPG(userId, "PENDING");
+
+    // ✅ Notify user their KYC was submitted and is under review
+    notifyUser(
+      userId,
+      "KYC Submitted",
+      "Your KYC documents have been submitted and are under review. This usually takes 1-2 working days.",
+      "ALERT"
+    );
 
     return res.status(201).json({ success: true, message: "KYC submitted successfully.", status: "PENDING" });
   } catch (error) {
@@ -185,6 +210,17 @@ const approveKyc = async (req, res) => {
     kycRecord.status = "APPROVED";
     await kycRecord.save();
     await saveKycStatusToPG(userId, "APPROVED");
+
+    // ✅ Notify user their KYC was approved — this is the actual trigger
+    // point. No admin clicks "send notification" — it fires automatically
+    // the instant approval happens, same as Groww/Zerodha.
+    notifyUser(
+      userId,
+      "KYC Verified ✅",
+      "Congratulations! Your KYC has been verified. You can now start investing in mutual funds.",
+      "ALERT"
+    );
+
     return res.status(200).json({ success: true, message: "KYC approved successfully.", status: "APPROVED" });
   } catch (error) {
     console.error("Approve KYC Error:", error.message);

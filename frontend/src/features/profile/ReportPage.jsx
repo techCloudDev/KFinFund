@@ -1,36 +1,146 @@
 import { apiFetch } from "../../utils/api";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import DashboardLayout from "../mutual-fund/component/DashboardLayout";
 import "./profile.css";
 
 const TRANSACTION_SERVICE_URL = import.meta.env.VITE_TRANSACTION_API || "http://localhost:4003";
 
-// ✅ Dynamic NAV fetch — works for ANY fund automatically
 const navCache = {};
 
-const fetchLiveNav = async (fundName) => {
-  if (!fundName) return null;
-  if (navCache[fundName] !== undefined) return navCache[fundName];
+// ✅ Fetch NAV by exact scheme_code — never guesses, always correct.
+const fetchNavByCode = async (schemeCode) => {
+  const cacheKey = `code:${schemeCode}`;
+  if (navCache[cacheKey] !== undefined) return navCache[cacheKey];
   try {
-    const searchRes = await fetch(`https://api.mfapi.in/mf/search?q=${encodeURIComponent(fundName.trim())}`);
-    if (!searchRes.ok) { navCache[fundName] = null; return null; }
-    const searchData = await searchRes.json();
-    if (!searchData?.length) { navCache[fundName] = null; return null; }
-    const schemeCode = searchData[0].schemeCode;
-    if (!schemeCode) { navCache[fundName] = null; return null; }
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 5000);
     const navRes = await fetch(`https://api.mfapi.in/mf/${schemeCode}/latest`, { signal: controller.signal });
     clearTimeout(timer);
-    if (!navRes.ok) { navCache[fundName] = null; return null; }
+    if (!navRes.ok) { navCache[cacheKey] = null; return null; }
     const navData = await navRes.json();
     const nav = parseFloat(navData?.data?.[0]?.nav);
-    if (isNaN(nav)) { navCache[fundName] = null; return null; }
-    navCache[fundName] = nav;
+    if (isNaN(nav)) { navCache[cacheKey] = null; return null; }
+    navCache[cacheKey] = nav;
     return nav;
-  } catch { navCache[fundName] = null; return null; }
+  } catch { navCache[cacheKey] = null; return null; }
 };
+
+// ⚠️ Fallback only — name search can match the wrong scheme. Used only when
+// a transaction has no stored scheme_code (e.g. older transactions made
+// before this fix). Always prefer fetchNavByCode when a code is available.
+const fetchLiveNavBySearch = async (fundName) => {
+  if (!fundName) return null;
+  const cacheKey = `name:${fundName}`;
+  if (navCache[cacheKey] !== undefined) return navCache[cacheKey];
+  try {
+    const searchRes = await fetch(`https://api.mfapi.in/mf/search?q=${encodeURIComponent(fundName.trim())}`);
+    if (!searchRes.ok) { navCache[cacheKey] = null; return null; }
+    const searchData = await searchRes.json();
+    if (!searchData?.length) { navCache[cacheKey] = null; return null; }
+    const schemeCode = searchData[0].schemeCode;
+    if (!schemeCode) { navCache[cacheKey] = null; return null; }
+    const nav = await fetchNavByCode(schemeCode);
+    navCache[cacheKey] = nav;
+    return nav;
+  } catch { navCache[cacheKey] = null; return null; }
+};
+
+// ✅ Unified entry point — uses scheme_code when present, falls back to search.
+const fetchLiveNav = async (fundName, schemeCode) => {
+  if (schemeCode) return fetchNavByCode(schemeCode);
+  return fetchLiveNavBySearch(fundName);
+};
+
+// ── Custom mini calendar ──────────────────────────────────────
+const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const DAYS = ["Su","Mo","Tu","We","Th","Fr","Sa"];
+
+function MiniCalendar({ value, onChange, maxDate }) {
+  const today = new Date();
+  const init = value ? new Date(value) : today;
+  const [year, setYear] = useState(init.getFullYear());
+  const [month, setMonth] = useState(init.getMonth());
+
+  const firstDay = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const cells = Array(firstDay).fill(null).concat(Array.from({ length: daysInMonth }, (_, i) => i + 1));
+  while (cells.length % 7 !== 0) cells.push(null);
+
+  const toStr = (y, m, d) => `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+
+  return (
+    <div style={{ background: "#fff", border: "1.5px solid #e5e7eb", borderRadius: "12px", padding: "14px", width: "220px", boxShadow: "0 8px 24px rgba(0,0,0,0.12)" }}>
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
+        <button onClick={() => { if (month === 0) { setMonth(11); setYear(y => y - 1); } else setMonth(m => m - 1); }}
+          style={{ background: "none", border: "none", cursor: "pointer", fontSize: "16px", color: "#6b7280", padding: "2px 6px" }}>‹</button>
+        <span style={{ fontWeight: "700", fontSize: "13px", color: "#111827" }}>{MONTHS[month]} {year}</span>
+        <button onClick={() => { if (month === 11) { setMonth(0); setYear(y => y + 1); } else setMonth(m => m + 1); }}
+          style={{ background: "none", border: "none", cursor: "pointer", fontSize: "16px", color: "#6b7280", padding: "2px 6px" }}>›</button>
+      </div>
+      {/* Day headers */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "2px", marginBottom: "4px" }}>
+        {DAYS.map(d => <div key={d} style={{ textAlign: "center", fontSize: "10px", fontWeight: "700", color: "#9ca3af", padding: "2px 0" }}>{d}</div>)}
+      </div>
+      {/* Dates */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "2px" }}>
+        {cells.map((day, i) => {
+          if (!day) return <div key={i} />;
+          const dateStr = toStr(year, month, day);
+          const isSelected = value === dateStr;
+          const isDisabled = maxDate && dateStr > maxDate;
+          const isToday = dateStr === toStr(today.getFullYear(), today.getMonth(), today.getDate());
+          return (
+            <button key={i} disabled={isDisabled}
+              onClick={() => onChange(dateStr)}
+              style={{
+                background: isSelected ? "#6C3AED" : "transparent",
+                color: isSelected ? "#fff" : isDisabled ? "#d1d5db" : isToday ? "#6C3AED" : "#374151",
+                border: isToday && !isSelected ? "1.5px solid #6C3AED" : "none",
+                borderRadius: "6px", padding: "4px 2px", fontSize: "11px", fontWeight: isSelected ? "700" : "500",
+                cursor: isDisabled ? "not-allowed" : "pointer", textAlign: "center",
+              }}>
+              {day}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── Preset ranges ─────────────────────────────────────────────
+const getPresetRange = (preset) => {
+  const today = new Date();
+  const fmt = (d) => d.toISOString().split("T")[0];
+  const ago = (days) => { const d = new Date(today); d.setDate(d.getDate() - days); return fmt(d); };
+  const startOfMonth = (offset = 0) => {
+    const d = new Date(today.getFullYear(), today.getMonth() - offset, 1);
+    return fmt(d);
+  };
+  const endOfMonth = (offset = 0) => {
+    const d = new Date(today.getFullYear(), today.getMonth() - offset + 1, 0);
+    return fmt(d);
+  };
+  switch (preset) {
+    case "last_week":    return { from: ago(7), to: fmt(today) };
+    case "last_month":   return { from: startOfMonth(1), to: endOfMonth(1) };
+    case "last_2_month": return { from: startOfMonth(2), to: endOfMonth(1) };
+    case "last_year":    return { from: `${today.getFullYear() - 1}-01-01`, to: `${today.getFullYear() - 1}-12-31` };
+    case "all":          return { from: "", to: "" };
+    default:             return null;
+  }
+};
+
+const PRESET_OPTIONS = [
+  { key: "all",          label: "All Time" },
+  { key: "last_week",    label: "Last Week" },
+  { key: "last_month",   label: "Last Month" },
+  { key: "last_2_month", label: "Last 2 Months" },
+  { key: "last_year",    label: "Last Year" },
+  { key: "custom",       label: "Custom Range" },
+];
 
 export default function ReportPage() {
   const navigate = useNavigate();
@@ -41,32 +151,46 @@ export default function ReportPage() {
   const [totalCurrentValue, setTotalCurrentValue] = useState(0);
   const [navLoaded, setNavLoaded] = useState(false);
 
-  // ✅ Date range filter
+  // Download dropdown state
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [selectedPreset, setSelectedPreset] = useState("all");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
-  const [showDateFilter, setShowDateFilter] = useState(false);
+  const [showCustomFrom, setShowCustomFrom] = useState(false);
+  const [showCustomTo, setShowCustomTo] = useState(false);
+  const dropdownRef = useRef(null);
+  const today = new Date().toISOString().split("T")[0];
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handler = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setShowDropdown(false);
+        setShowCustomFrom(false);
+        setShowCustomTo(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) { navigate("/login"); return; }
     apiFetch(`${TRANSACTION_SERVICE_URL}/api/transactions/history`)
       .then(r => r.json())
-      .then(data => {
-        setTransactions(data.transactions || []);
-        setLoading(false);
-      })
+      .then(data => { setTransactions(data.transactions || []); setLoading(false); })
       .catch(() => { setTransactions([]); setLoading(false); });
   }, [navigate]);
 
-  // ✅ Fetch live NAV for all funds
   useEffect(() => {
     if (transactions.length === 0) return;
     setNavLoading(true);
-
     const fundMap = {};
     transactions.forEach(tx => {
       const key = tx.fund_id;
-      if (!fundMap[key]) fundMap[key] = { name: key, invested: 0, units: 0, redeemed: 0 };
+      if (!fundMap[key]) fundMap[key] = { name: key, invested: 0, units: 0, redeemed: 0, scheme_code: null };
+      if (tx.scheme_code) fundMap[key].scheme_code = tx.scheme_code; // ✅ capture exact code
       if (tx.transaction_type === "BUY") {
         fundMap[key].invested += Number(tx.amount || 0);
         fundMap[key].units += Number(tx.units || 0);
@@ -76,9 +200,8 @@ export default function ReportPage() {
         fundMap[key].units -= Number(tx.units || 0);
       }
     });
-
     Promise.all(Object.values(fundMap).map(async (f) => {
-      const liveNav = await fetchLiveNav(f.name);
+      const liveNav = await fetchLiveNav(f.name, f.scheme_code);
       const units = Math.max(0, f.units);
       const current = liveNav && units > 0 ? units * liveNav : f.invested;
       const gain = current - f.invested;
@@ -92,23 +215,38 @@ export default function ReportPage() {
     });
   }, [transactions]);
 
-  // ✅ Filter transactions by date range
+  // Apply preset
+  const handlePreset = (key) => {
+    setSelectedPreset(key);
+    if (key === "custom") {
+      setShowCustomFrom(true);
+      setShowCustomTo(false);
+      return;
+    }
+    const range = getPresetRange(key);
+    if (range) { setFromDate(range.from); setToDate(range.to); }
+    setShowCustomFrom(false);
+    setShowCustomTo(false);
+  };
+
+  // Filtered transactions
   const filteredTxns = transactions.filter(tx => {
     if (!fromDate && !toDate) return true;
     const d = new Date(tx.transaction_date);
     if (fromDate && d < new Date(fromDate)) return false;
-    if (toDate) { const to = new Date(toDate); to.setHours(23,59,59); if (d > to) return false; }
+    if (toDate) { const to = new Date(toDate); to.setHours(23, 59, 59); if (d > to) return false; }
     return true;
   });
 
   const formatCurrency = (n) => `₹ ${Number(n || 0).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
   const formatDate = (d) => new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+  const formatShort = (s) => s ? new Date(s).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "";
 
   const totalInvested = filteredTxns.filter(t => t.transaction_type === "BUY").reduce((s, t) => s + Number(t.amount || 0), 0);
   const totalGain = totalCurrentValue - totalInvested;
   const gainPct = totalInvested > 0 ? ((totalGain / totalInvested) * 100).toFixed(2) : "0.00";
 
-  // ✅ Download as CSV
+  // Download CSV
   const handleDownload = () => {
     const dateLabel = fromDate || toDate ? `${fromDate || "all"}_to_${toDate || "all"}` : "all";
     const rows = [
@@ -117,83 +255,181 @@ export default function ReportPage() {
       fromDate || toDate ? [`Period: ${fromDate || "start"} to ${toDate || "today"}`] : ["Period: All time"],
       [],
       ["Fund Name", "Invested", "Current Value", "Profit/Loss", "Return %", "Live NAV"],
-      ...plItems.map(item => [
-        item.name,
-        item.invested.toFixed(2),
-        item.current.toFixed(2),
-        item.gain.toFixed(2),
-        item.pct + "%",
-        item.liveNav ? item.liveNav.toFixed(4) : "N/A",
-      ]),
+      ...plItems.map(item => [item.name, item.invested.toFixed(2), item.current.toFixed(2), item.gain.toFixed(2), item.pct + "%", item.liveNav ? item.liveNav.toFixed(4) : "N/A"]),
       [],
       ["TOTAL", totalInvested.toFixed(2), totalCurrentValue.toFixed(2), totalGain.toFixed(2), gainPct + "%", ""],
       [],
       ["Transaction History"],
       ["Date", "Fund", "Type", "Amount", "Units", "NAV"],
-      ...filteredTxns.map(tx => [
-        formatDate(tx.transaction_date),
-        tx.fund_id,
-        tx.transaction_type,
-        tx.amount,
-        tx.units || "",
-        tx.nav || "",
-      ]),
+      ...filteredTxns.map(tx => [formatDate(tx.transaction_date), tx.fund_id, tx.transaction_type, tx.amount, tx.units || "", tx.nav || ""]),
     ];
-
     const csv = rows.map(r => r.map(c => `"${c}"`).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url;
-    a.download = `KFinFund_PL_Report_${dateLabel}.csv`;
-    a.click();
+    a.href = url; a.download = `KFinFund_PL_Report_${dateLabel}.csv`; a.click();
     URL.revokeObjectURL(url);
+    setShowDropdown(false);
   };
+
+  // Label shown on button
+  const buttonLabel = selectedPreset === "all" ? "Download"
+    : selectedPreset === "custom"
+      ? (fromDate && toDate ? `${formatShort(fromDate)} → ${formatShort(toDate)}` : fromDate ? `From ${formatShort(fromDate)}` : "Custom Range")
+      : PRESET_OPTIONS.find(o => o.key === selectedPreset)?.label || "Download";
 
   return (
     <DashboardLayout pageTitle="Profit & Loss Report">
       <div style={{ maxWidth: "960px", margin: "0 auto" }}>
+
         {/* Header */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "24px", flexWrap: "wrap", gap: "12px" }}>
           <div>
             <h2 style={{ fontSize: "20px", fontWeight: "700", color: "#111827", margin: "0 0 4px" }}>Profit & Loss Statement</h2>
             <p style={{ color: "#6b7280", fontSize: "14px", margin: 0 }}>Realized and unrealized returns across your mutual fund investments.</p>
           </div>
+
           {transactions.length > 0 && (
-            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-              {/* Date filter button */}
+            <div style={{ position: "relative" }} ref={dropdownRef}>
+              {/* Download button */}
               <button
-                onClick={() => setShowDateFilter(f => !f)}
-                style={{ display: "flex", alignItems: "center", gap: "6px", background: showDateFilter ? "#f3f0ff" : "#fff", border: `1.5px solid ${showDateFilter ? "#6C3AED" : "#e5e7eb"}`, borderRadius: "8px", padding: "8px 16px", fontSize: "14px", fontWeight: "600", color: showDateFilter ? "#6C3AED" : "#374151", cursor: "pointer" }}>
-                📅 {fromDate || toDate ? `${fromDate || "—"} → ${toDate || "—"}` : "Date Range"}
+                onClick={() => setShowDropdown(v => !v)}
+                style={{
+                  display: "flex", alignItems: "center", gap: "8px",
+                  background: "#fff", border: "1.5px solid #e5e7eb",
+                  borderRadius: "8px", padding: "9px 18px",
+                  fontSize: "14px", fontWeight: "600", color: "#374151",
+                  cursor: "pointer", whiteSpace: "nowrap",
+                  boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
+                }}>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#6C3AED" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                {buttonLabel}
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points={showDropdown ? "18 15 12 9 6 15" : "6 9 12 15 18 9"}/>
+                </svg>
               </button>
-              {/* ✅ Download button */}
-              <button
-                onClick={handleDownload}
-                style={{ display: "flex", alignItems: "center", gap: "6px", background: "#fff", border: "1.5px solid #e5e7eb", borderRadius: "8px", padding: "8px 16px", fontSize: "14px", fontWeight: "600", color: "#374151", cursor: "pointer" }}>
-                ⬇️ Download
-              </button>
+
+              {/* Dropdown */}
+              {showDropdown && (
+                <div style={{
+                  position: "absolute", top: "calc(100% + 6px)", right: 0,
+                  background: "#fff", border: "1.5px solid #e5e7eb",
+                  borderRadius: "12px", minWidth: "200px",
+                  boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
+                  zIndex: 100, overflow: "visible",
+                }}>
+                  <div style={{ padding: "8px" }}>
+                    {PRESET_OPTIONS.map(opt => (
+                      <button
+                        key={opt.key}
+                        onClick={() => handlePreset(opt.key)}
+                        style={{
+                          width: "100%", textAlign: "left",
+                          background: selectedPreset === opt.key ? "#f3f0ff" : "transparent",
+                          border: "none", borderRadius: "8px",
+                          padding: "9px 14px", fontSize: "14px", fontWeight: "500",
+                          color: selectedPreset === opt.key ? "#6C3AED" : "#374151",
+                          cursor: "pointer", display: "flex", alignItems: "center", gap: "8px",
+                        }}>
+                        {selectedPreset === opt.key && (
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6C3AED" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="20 6 9 17 4 12"/>
+                          </svg>
+                        )}
+                        {selectedPreset !== opt.key && <span style={{ width: "14px" }} />}
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Custom range pickers */}
+                  {selectedPreset === "custom" && (
+                    <div style={{ borderTop: "1px solid #f3f4f6", padding: "12px 12px 8px" }}>
+                      <div style={{ fontSize: "12px", fontWeight: "700", color: "#6b7280", textTransform: "uppercase", marginBottom: "8px", letterSpacing: "0.4px" }}>
+                        Select Range
+                      </div>
+                      <div style={{ display: "flex", gap: "8px", marginBottom: "8px" }}>
+                        {/* From */}
+                        <div style={{ flex: 1, position: "relative" }}>
+                          <label style={{ fontSize: "11px", fontWeight: "600", color: "#9ca3af", display: "block", marginBottom: "4px" }}>FROM</label>
+                          <button
+                            onClick={() => { setShowCustomFrom(v => !v); setShowCustomTo(false); }}
+                            style={{
+                              width: "100%", textAlign: "left", background: "#f9fafb",
+                              border: `1.5px solid ${showCustomFrom ? "#6C3AED" : "#e5e7eb"}`,
+                              borderRadius: "8px", padding: "7px 10px", fontSize: "13px",
+                              color: fromDate ? "#111827" : "#9ca3af", cursor: "pointer", fontWeight: "500",
+                            }}>
+                            {fromDate ? formatShort(fromDate) : "Pick date"}
+                          </button>
+                          {showCustomFrom && (
+                            <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, zIndex: 200 }}>
+                              <MiniCalendar value={fromDate} maxDate={toDate || today}
+                                onChange={(d) => { setFromDate(d); setShowCustomFrom(false); setShowCustomTo(true); }} />
+                            </div>
+                          )}
+                        </div>
+                        {/* To */}
+                        <div style={{ flex: 1, position: "relative" }}>
+                          <label style={{ fontSize: "11px", fontWeight: "600", color: "#9ca3af", display: "block", marginBottom: "4px" }}>TO</label>
+                          <button
+                            onClick={() => { setShowCustomTo(v => !v); setShowCustomFrom(false); }}
+                            style={{
+                              width: "100%", textAlign: "left", background: "#f9fafb",
+                              border: `1.5px solid ${showCustomTo ? "#6C3AED" : "#e5e7eb"}`,
+                              borderRadius: "8px", padding: "7px 10px", fontSize: "13px",
+                              color: toDate ? "#111827" : "#9ca3af", cursor: "pointer", fontWeight: "500",
+                            }}>
+                            {toDate ? formatShort(toDate) : "Pick date"}
+                          </button>
+                          {showCustomTo && (
+                            <div style={{ position: "absolute", top: "calc(100% + 4px)", right: 0, zIndex: 200 }}>
+                              <MiniCalendar value={toDate} maxDate={today}
+                                onChange={(d) => { setToDate(d); setShowCustomTo(false); }} />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      {fromDate && <button onClick={() => { setFromDate(""); setToDate(""); }}
+                        style={{ background: "none", border: "none", fontSize: "12px", color: "#9ca3af", cursor: "pointer", padding: 0 }}>
+                        Clear dates
+                      </button>}
+                    </div>
+                  )}
+
+                  {/* Download button at bottom */}
+                  <div style={{ borderTop: "1px solid #f3f4f6", padding: "8px" }}>
+                    <button
+                      onClick={handleDownload}
+                      style={{
+                        width: "100%", background: "#6C3AED", color: "#fff",
+                        border: "none", borderRadius: "8px", padding: "10px",
+                        fontSize: "14px", fontWeight: "700", cursor: "pointer",
+                        display: "flex", alignItems: "center", justifyContent: "center", gap: "6px",
+                      }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                      </svg>
+                      Download Report
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
 
-        {/* Date range picker */}
-        {showDateFilter && (
-          <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: "12px", padding: "16px 20px", marginBottom: "20px", display: "flex", gap: "16px", flexWrap: "wrap", alignItems: "flex-end" }}>
-            <div>
-              <label style={{ fontSize: "12px", fontWeight: "700", color: "#6b7280", textTransform: "uppercase", display: "block", marginBottom: "6px" }}>From Date</label>
-              <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)}
-                style={{ height: "40px", border: "1.5px solid #e5e7eb", borderRadius: "8px", padding: "0 12px", fontSize: "14px", outline: "none" }} />
+        {/* Active filter pill */}
+        {(fromDate || toDate) && (
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "16px" }}>
+            <div style={{ background: "#f3f0ff", border: "1px solid #c4b5fd", borderRadius: "20px", padding: "4px 14px", fontSize: "13px", color: "#6C3AED", fontWeight: "600", display: "flex", alignItems: "center", gap: "6px" }}>
+              📅 {fromDate ? formatShort(fromDate) : "Start"} → {toDate ? formatShort(toDate) : "Today"}
+              <button onClick={() => { setFromDate(""); setToDate(""); setSelectedPreset("all"); }}
+                style={{ background: "none", border: "none", color: "#6C3AED", cursor: "pointer", fontSize: "16px", lineHeight: 1, padding: "0 0 0 4px" }}>×</button>
             </div>
-            <div>
-              <label style={{ fontSize: "12px", fontWeight: "700", color: "#6b7280", textTransform: "uppercase", display: "block", marginBottom: "6px" }}>To Date</label>
-              <input type="date" value={toDate} onChange={e => setToDate(e.target.value)}
-                style={{ height: "40px", border: "1.5px solid #e5e7eb", borderRadius: "8px", padding: "0 12px", fontSize: "14px", outline: "none" }} />
-            </div>
-            <button onClick={() => { setFromDate(""); setToDate(""); }}
-              style={{ height: "40px", background: "transparent", border: "1.5px solid #e5e7eb", borderRadius: "8px", padding: "0 16px", fontSize: "14px", color: "#6b7280", cursor: "pointer" }}>
-              Clear
-            </button>
+            <span style={{ fontSize: "13px", color: "#9ca3af" }}>{filteredTxns.length} transaction{filteredTxns.length !== 1 ? "s" : ""}</span>
           </div>
         )}
 
@@ -267,7 +503,8 @@ export default function ReportPage() {
             <div style={{ background: "#fff", borderRadius: "14px", border: "1px solid #e5e7eb", overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}>
               <div style={{ padding: "18px 24px", borderBottom: "1px solid #e5e7eb" }}>
                 <h3 style={{ margin: 0, fontSize: "16px", fontWeight: "700", color: "#111827" }}>
-                  Transaction History {fromDate || toDate ? <span style={{ fontSize: "13px", color: "#6C3AED", fontWeight: "600" }}>({filteredTxns.length} transactions)</span> : ""}
+                  Transaction History{" "}
+                  {(fromDate || toDate) && <span style={{ fontSize: "13px", color: "#6C3AED", fontWeight: "600" }}>({filteredTxns.length} transactions)</span>}
                 </h3>
               </div>
               <div style={{ overflowX: "auto" }}>

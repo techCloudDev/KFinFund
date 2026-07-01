@@ -250,16 +250,21 @@ export default function KycPage() {
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) { navigate("/login"); return; }
+    // ✅ Use cached KYC status first to avoid 429 rate limit
+    const cachedKyc = localStorage.getItem("kycStatus");
+    if (cachedKyc) setKycStatus(cachedKyc);
     apiFetch(`${KYC_SERVICE_URL}/api/kyc/status`)
       .then(r => r.json())
       .then(data => {
-        setKycStatus(data.status || "NOT_SUBMITTED");
-        if (data.status === "PENDING" || data.status === "APPROVED") {
+        const status = data.status || "NOT_SUBMITTED";
+        setKycStatus(status);
+        localStorage.setItem("kycStatus", status);
+        if (status === "PENDING" || status === "APPROVED") {
           apiFetch(`${KYC_SERVICE_URL}/api/kyc`)
             .then(r => r.json()).then(setKycData).catch(() => {});
         }
       })
-      .catch(() => setKycStatus("NOT_SUBMITTED"));
+      .catch(() => setKycStatus(cachedKyc || "NOT_SUBMITTED"));
   }, [navigate, location.pathname]);
 
   const handleFileChange = (e, type) => {

@@ -24,14 +24,24 @@ const NAV_ITEMS = [
       { label: "Commodity", to: "/mutual-fund?category=commodity", requiresAuth: false },
     ],
   },
+  // ✅ Calculators — fully public, no login required.
+  // Each item goes to a dedicated public route wrapped in PublicLayout
+  // so non-logged-in users never see or touch the authenticated sidebar.
+  {
+    label: "Calculators",
+    items: [
+      { label: "SIP Calculator", to: "/calculators/sip", requiresAuth: false },
+      { label: "Lumpsum Calculator", to: "/calculators/lumpsum", requiresAuth: false },
+    ],
+  },
   {
     label: "My Account",
     items: [
       { label: "Dashboard", to: "/dashboard", requiresAuth: true },
-{ label: "My Portfolio", to: "/portfolio", requiresAuth: true },
-{ label: "My SIPs", to: "/user/sip", requiresAuth: true },
-{ label: "Transactions", to: "/transactions", requiresAuth: true },
-{ label: "Profile", to: "/user/profile/basic-details", requiresAuth: true },
+      { label: "My Portfolio", to: "/portfolio", requiresAuth: true },
+      { label: "My SIPs", to: "/user/sip", requiresAuth: true },
+      { label: "Transactions", to: "/transactions", requiresAuth: true },
+      { label: "Profile", to: "/user/profile/basic-details", requiresAuth: true },
     ],
   },
 ];
@@ -147,9 +157,11 @@ function NavDropdown({ label, items }) {
 
 function MobileMenu({ open, onClose }) {
   const navigate = useNavigate();
+  const [openSection, setOpenSection] = useState(null);
 
   const handleClick = (item) => {
     onClose();
+    setOpenSection(null);
     if (item.requiresAuth && !localStorage.getItem("token")) {
       navigate("/login");
     } else {
@@ -157,29 +169,100 @@ function MobileMenu({ open, onClose }) {
     }
   };
 
+  const toggleSection = (label) => {
+    setOpenSection((prev) => (prev === label ? null : label));
+  };
+
   return (
-    <div className={`lp-mobile-menu${open ? " is-open" : ""}`} aria-hidden={!open}>
-      {NAV_ITEMS.map(({ label, items }) => (
-        <div key={label} className="lp-mobile-menu__section">
-          <div className="lp-mobile-menu__label">{label}</div>
-          {items.map((item) => (
-            <div
-              key={item.label}
-              className="lp-mobile-menu__link"
-              style={{ cursor: "pointer" }}
-              onClick={() => handleClick(item)}
-            >
-              {item.label}
+    <div className={`lp-mobile-menu${open ? " is-open" : ""}`} aria-hidden={!open} style={{ padding: 0 }}>
+      <div style={{ paddingBottom: "4px" }}>
+        {NAV_ITEMS.map(({ label, items }) => {
+          const isOpen = openSection === label;
+          return (
+            <div key={label}>
+              {/* ✅ Section heading — full width tap target, chevron rotates on open */}
+              <button
+                type="button"
+                onClick={() => toggleSection(label)}
+                style={{
+                  width: "100%", display: "flex", alignItems: "center",
+                  justifyContent: "space-between", padding: "15px 20px",
+                  background: "none", border: "none",
+                  borderBottom: "1px solid rgba(139,92,246,0.12)",
+                  cursor: "pointer", fontFamily: "inherit",
+                  fontSize: "13px", fontWeight: "700", color: "#6C3AED",
+                  letterSpacing: "0.08em", textTransform: "uppercase",
+                  textAlign: "left",
+                }}
+              >
+                {label}
+                <span style={{
+                  fontSize: "16px", color: "#6C3AED", fontWeight: "400",
+                  display: "inline-block",
+                  transform: isOpen ? "rotate(180deg)" : "rotate(0deg)",
+                  transition: "transform 0.2s ease",
+                }}>▾</span>
+              </button>
+
+              {/* ✅ Items — left-aligned with indent, visible only when open */}
+              {isOpen && (
+                <div style={{ background: "rgba(139,92,246,0.04)", borderBottom: "1px solid rgba(139,92,246,0.12)" }}>
+                  {items.map((item) => (
+                    <div
+                      key={item.label}
+                      onClick={() => handleClick(item)}
+                      style={{
+                        padding: "11px 20px 11px 32px",
+                        fontSize: "14px", fontWeight: "500",
+                        color: "#4b5563", cursor: "pointer",
+                        textAlign: "left",
+                        borderBottom: "1px solid rgba(139,92,246,0.06)",
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.color = "#6C3AED"}
+                      onMouseLeave={(e) => e.currentTarget.style.color = "#4b5563"}
+                    >
+                      {item.label}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-          ))}
-        </div>
-      ))}
-      <Link to="/login" className="lp-btn-nav lp-mobile-menu__cta" style={{ textDecoration: "none", textAlign: "center" }} onClick={onClose}>
-        Login
-      </Link>
-      <Link to="/register" className="lp-btn-nav lp-btn-nav--outline lp-mobile-menu__cta" style={{ textDecoration: "none", textAlign: "center" }} onClick={onClose}>
-        Sign Up
-      </Link>
+          );
+        })}
+      </div>
+
+      {/* ✅ Login / Sign Up — fixed at bottom, full width, bigger buttons */}
+      <div style={{
+        padding: "20px", display: "flex", gap: "12px",
+        borderTop: "1px solid rgba(139,92,246,0.15)", marginTop: "8px",
+      }}>
+        <Link
+          to="/login"
+          onClick={onClose}
+          style={{
+            flex: 1, padding: "13px 0", background: "#6C3AED", color: "white",
+            border: "none", borderRadius: "999px", fontSize: "15px",
+            fontWeight: "700", cursor: "pointer", textDecoration: "none",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontFamily: "inherit",
+          }}
+        >
+          Login
+        </Link>
+        <Link
+          to="/register"
+          onClick={onClose}
+          style={{
+            flex: 1, padding: "13px 0", background: "transparent",
+            color: "#6C3AED", border: "2px solid #6C3AED", borderRadius: "999px",
+            fontSize: "15px", fontWeight: "700", cursor: "pointer",
+            textDecoration: "none", display: "flex", alignItems: "center",
+            justifyContent: "center", fontFamily: "inherit",
+          }}
+        >
+          Sign Up
+        </Link>
+      </div>
     </div>
   );
 }

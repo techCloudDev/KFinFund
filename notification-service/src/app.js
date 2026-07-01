@@ -3,7 +3,6 @@ const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
-const mongoSanitize = require("express-mongo-sanitize");
 
 const connectDB = require("./config/db");
 const notificationRoutes = require("./routes/notificationRoutes");
@@ -26,8 +25,10 @@ app.use(cors({
 // ── Body Parser ──
 app.use(express.json({ limit: "10kb" }));
 
-// ── NoSQL Injection Protection ──
-app.use(mongoSanitize());
+// ✅ NOTE: express-mongo-sanitize REMOVED — it crashes with
+// "Cannot set property query of #<IncomingMessage>" on newer
+// Express/Node since req.query is a read-only getter. Same bug
+// was found and fixed in kyc-service and transaction-service earlier.
 
 // ── Global Rate Limiter ──
 const globalLimiter = rateLimit({
@@ -40,9 +41,12 @@ const globalLimiter = rateLimit({
 app.use(globalLimiter);
 
 // ── Notification Rate Limiter ──
+// ✅ Raised from 12 → 200 — same fix applied to kyc-service earlier.
+// The bell icon polls /unread-count periodically, so 12 req/15min
+// would hit the limit almost immediately during normal use.
 const notificationLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 12,
+  max: 200,
   message: { error: "Too many notification requests, please try again after 15 minutes." },
   standardHeaders: true,
   legacyHeaders: false,

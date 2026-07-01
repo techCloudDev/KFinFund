@@ -36,33 +36,51 @@ const TAGLINES = [
   "Compounding is the eighth wonder of the world. 🚀",
 ];
 
-// ✅ Dynamic NAV fetch — works for ANY fund automatically
-// In-memory cache to avoid repeated API calls
+// ✅ NAV lookup — exact scheme_code first (always correct), name-search
+// only as a fallback for legacy transactions made before scheme_code existed.
 const navCache = {};
 
-const fetchLiveNav = async (fundName) => {
-  if (!fundName) return null;
-  if (navCache[fundName] !== undefined) return navCache[fundName];
+const fetchNavByCode = async (schemeCode) => {
+  const cacheKey = `code:${schemeCode}`;
+  if (navCache[cacheKey] !== undefined) return navCache[cacheKey];
   try {
-    // Step 1 — Search mfapi.in for scheme code
-    const searchRes = await fetch(`https://api.mfapi.in/mf/search?q=${encodeURIComponent(fundName.trim())}`);
-    if (!searchRes.ok) { navCache[fundName] = null; return null; }
-    const searchData = await searchRes.json();
-    if (!searchData?.length) { navCache[fundName] = null; return null; }
-    const schemeCode = searchData[0].schemeCode;
-    if (!schemeCode) { navCache[fundName] = null; return null; }
-    // Step 2 — Fetch latest NAV
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 5000);
     const navRes = await fetch(`https://api.mfapi.in/mf/${schemeCode}/latest`, { signal: controller.signal });
     clearTimeout(timer);
-    if (!navRes.ok) { navCache[fundName] = null; return null; }
+    if (!navRes.ok) { navCache[cacheKey] = null; return null; }
     const navData = await navRes.json();
     const nav = parseFloat(navData?.data?.[0]?.nav);
-    if (isNaN(nav)) { navCache[fundName] = null; return null; }
-    navCache[fundName] = nav;
+    if (isNaN(nav)) { navCache[cacheKey] = null; return null; }
+    navCache[cacheKey] = nav;
     return nav;
-  } catch { navCache[fundName] = null; return null; }
+  } catch { navCache[cacheKey] = null; return null; }
+};
+
+// ⚠️ Fallback only — name search can match the wrong scheme since multiple
+// funds share words like "Direct Plan" or "Growth". Only used when a
+// holding has no stored scheme_code (older transactions).
+const fetchLiveNavBySearch = async (fundName) => {
+  if (!fundName) return null;
+  const cacheKey = `name:${fundName}`;
+  if (navCache[cacheKey] !== undefined) return navCache[cacheKey];
+  try {
+    const searchRes = await fetch(`https://api.mfapi.in/mf/search?q=${encodeURIComponent(fundName.trim())}`);
+    if (!searchRes.ok) { navCache[cacheKey] = null; return null; }
+    const searchData = await searchRes.json();
+    if (!searchData?.length) { navCache[cacheKey] = null; return null; }
+    const schemeCode = searchData[0].schemeCode;
+    if (!schemeCode) { navCache[cacheKey] = null; return null; }
+    const nav = await fetchNavByCode(schemeCode);
+    navCache[cacheKey] = nav;
+    return nav;
+  } catch { navCache[cacheKey] = null; return null; }
+};
+
+// ✅ Unified entry point — uses the holding's exact scheme_code when present.
+const fetchLiveNav = async (fundName, schemeCode) => {
+  if (schemeCode) return fetchNavByCode(schemeCode);
+  return fetchLiveNavBySearch(fundName);
 };
 
 function DashboardModal({ title, onClose, children }) {
@@ -177,8 +195,21 @@ function Dashboard() {
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) return;
+    // ✅ Check localStorage cache first — prevents 429 rate limit errors
+    const cachedKyc = localStorage.getItem("kycStatus");
+    if (cachedKyc) setKycStatus(cachedKyc);
+
     apiFetch(`${KYC_SERVICE_URL}/api/kyc/status`)
-      .then(r => r.json()).then(d => setKycStatus(d.status || "NOT_SUBMITTED")).catch(() => setKycStatus("NOT_SUBMITTED"));
+      .then(r => r.json())
+      .then(d => {
+        const status = d.status || "NOT_SUBMITTED";
+        setKycStatus(status);
+        localStorage.setItem("kycStatus", status); // ✅ Cache it
+      })
+      .catch(() => {
+        // ✅ On error — use cached value, don't reset to NOT_SUBMITTED!
+        setKycStatus(cachedKyc || "NOT_SUBMITTED");
+      });
     apiFetch(`${TRANSACTION_SERVICE_URL}/api/transactions/portfolio`)
       .then(r => r.json()).then(async (data) => {
         setPortfolio(data);
@@ -186,7 +217,8 @@ function Dashboard() {
         if (holdings.length === 0) { setNavLoaded(true); return; }
         let totalCurrentValue = 0;
         const withNav = await Promise.all(holdings.map(async (h) => {
-          const liveNav = await fetchLiveNav(h.fund_id);
+          // ✅ Use exact scheme_code from the holding when available
+          const liveNav = await fetchLiveNav(h.fund_id, h.scheme_code);
           const units = parseFloat(h.total_units || 0);
           const currentValue = liveNav && units > 0 ? units * liveNav : parseFloat(h.invested || 0);
           totalCurrentValue += currentValue;
@@ -355,14 +387,15 @@ function Dashboard() {
       </div>
       <div className="main-grid" style={{ marginBottom: "20px" }}>
         <div className="overview-card" style={{ position: "relative" }}>
-          <div className="section-head" style={{ flexWrap: "wrap", gap: "8px" }}>
-            <h3>Portfolio Overview</h3>
-            <select value={filter} onChange={e => { setFilter(e.target.value); if (e.target.value !== "custom") { setFromDate(""); setToDate(""); } }}>
-              <option value="thisMonth">This Month</option>
-              <option value="lastMonth">Last Month</option>
-              <option value="custom">Custom Range</option>
-            </select>
-          </div>
+          <div className="section-head" style={{ flexWrap: "wrap", gap: "8px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+  <h3>Portfolio Overview</h3>
+  <select value={filter} onChange={e => { setFilter(e.target.value); if (e.target.value !== "custom") { setFromDate(""); setToDate(""); } }}
+    style={{ width: "auto", maxWidth: "160px", fontSize: "13px", padding: "6px 10px", borderRadius: "8px", border: "1px solid #e5e7eb", color: "#374151", cursor: "pointer" }}>
+    <option value="thisMonth">This Month</option>
+    <option value="lastMonth">Last Month</option>
+    <option value="custom">Custom Range</option>
+  </select>
+</div>
           {filter === "custom" && (
             <div style={{ marginTop: "12px", marginBottom: "8px" }}>
               <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>

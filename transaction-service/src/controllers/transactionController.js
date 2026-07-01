@@ -3,10 +3,27 @@ const {
   getTransactionsByUser
 } = require("../models/transactionModel");
 
+const NOTIFICATION_SERVICE_URL = process.env.NOTIFICATION_SERVICE_URL || "http://notification-service:3005";
+
+// ✅ Internal server-to-server notification call. Failures here must
+// NEVER block the actual transaction — wrapped so a notification-service
+// outage can't break buying/redeeming funds.
+const notifyUser = async (userId, title, message, type) => {
+  try {
+    await fetch(`${NOTIFICATION_SERVICE_URL}/api/notifications`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: Number(userId), title, message, type }),
+    });
+  } catch (e) {
+    console.error("⚠️ Failed to send notification (non-blocking):", e.message);
+  }
+};
+
 const buyFund = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { fund_id, amount, nav } = req.body;
+    const { fund_id, amount, nav, scheme_code } = req.body;
 
     if (!fund_id || !amount || !nav)
       return res.status(400).json({ error: "Fund ID, amount and NAV are required" });
@@ -16,7 +33,17 @@ const buyFund = async (req, res) => {
       return res.status(400).json({ error: "Amount must be greater than zero" });
 
     const units = Number((amount / nav).toFixed(4));
-    const transaction = await createTransaction(userId, fund_id, "BUY", amount, units, nav);
+    const transaction = await createTransaction(
+      userId, fund_id, "BUY", amount, units, nav, scheme_code || null
+    );
+
+    // ✅ Fire notification — automatic, the instant the purchase completes
+    notifyUser(
+      userId,
+      "Investment Successful 💰",
+      `₹${amount} invested in ${fund_id} at NAV ₹${nav}. ${units} units allotted.`,
+      "PURCHASE"
+    );
 
     return res.status(201).json({ message: "Fund purchased successfully", transaction });
   } catch (error) {
@@ -28,7 +55,7 @@ const buyFund = async (req, res) => {
 const redeemFund = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { fund_id, units, nav } = req.body;
+    const { fund_id, units, nav, scheme_code } = req.body;
 
     if (!fund_id || !units || !nav)
       return res.status(400).json({ error: "Fund ID, units and NAV are required" });
@@ -55,7 +82,17 @@ const redeemFund = async (req, res) => {
     }
 
     const amount = Number((units * nav).toFixed(2));
-    const transaction = await createTransaction(userId, fund_id, "REDEEM", amount, units, nav);
+    const transaction = await createTransaction(
+      userId, fund_id, "REDEEM", amount, units, nav, scheme_code || null
+    );
+
+    // ✅ Fire notification — automatic, the instant redemption completes
+    notifyUser(
+      userId,
+      "Redemption Successful",
+      `${units} units of ${fund_id} redeemed for ₹${amount} at NAV ₹${nav}.`,
+      "PURCHASE"
+    );
 
     return res.status(201).json({ message: "Fund redeemed successfully", transaction });
   } catch (error) {
@@ -91,7 +128,13 @@ const getPortfolio = async (req, res) => {
           invested: 0,
           avg_nav: 0,
           buy_count: 0,
+          scheme_code: null, // ✅ exact scheme code for reliable live NAV lookup
         };
+      }
+
+      // ✅ Capture scheme_code from any transaction that has it (most recent wins)
+      if (txn.scheme_code) {
+        portfolioMap[txn.fund_id].scheme_code = txn.scheme_code;
       }
 
       if (txn.transaction_type === "BUY") {
@@ -118,6 +161,7 @@ const getPortfolio = async (req, res) => {
         total_units: f.total_units,
         invested:    f.invested,
         avg_nav:     f.buy_count > 0 ? Number((f.avg_nav / f.buy_count).toFixed(2)) : 0,
+        scheme_code: f.scheme_code, // ✅ passed through to frontend
       }));
 
     return res.status(200).json({
