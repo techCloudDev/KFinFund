@@ -26,6 +26,12 @@ spec:
               value: "kfinfund_secret_key_2026"
             - name: PORT
               value: "3002"
+            - name: POSTGRES_USER_URL
+              value: postgresql://postgres:postgres123@postgres-service:5432/kfinfund_users
+            - name: SANDBOX_API_KEY
+              value: key_live_d2880acf4af34467b1bac282327c2e72
+            - name: SANDBOX_API_SECRET
+              value: secret_live_d7ce65299b5340d993113f734c9d1544
 ---
 apiVersion: v1
 kind: Service

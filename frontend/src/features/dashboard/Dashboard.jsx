@@ -1,12 +1,12 @@
 import { apiFetch } from "../../utils/api";
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
+import { useKyc } from "../../utils/KycContext";
 import DashboardLayout from "../mutual-fund/component/DashboardLayout";
 import "./dashboard.css";
 
 const TRANSACTION_SERVICE_URL = import.meta.env.VITE_TRANSACTION_API || "http://localhost:4003";
 const SIP_SERVICE_URL = import.meta.env.VITE_SIP_API || "http://localhost:4004";
-const KYC_SERVICE_URL = import.meta.env.VITE_KYC_API || "http://localhost:4002";
 
 const getTokenData = () => {
   const token = localStorage.getItem("token");
@@ -36,8 +36,6 @@ const TAGLINES = [
   "Compounding is the eighth wonder of the world. 🚀",
 ];
 
-// ✅ NAV lookup — exact scheme_code first (always correct), name-search
-// only as a fallback for legacy transactions made before scheme_code existed.
 const navCache = {};
 
 const fetchNavByCode = async (schemeCode) => {
@@ -57,9 +55,6 @@ const fetchNavByCode = async (schemeCode) => {
   } catch { navCache[cacheKey] = null; return null; }
 };
 
-// ⚠️ Fallback only — name search can match the wrong scheme since multiple
-// funds share words like "Direct Plan" or "Growth". Only used when a
-// holding has no stored scheme_code (older transactions).
 const fetchLiveNavBySearch = async (fundName) => {
   if (!fundName) return null;
   const cacheKey = `name:${fundName}`;
@@ -77,7 +72,6 @@ const fetchLiveNavBySearch = async (fundName) => {
   } catch { navCache[cacheKey] = null; return null; }
 };
 
-// ✅ Unified entry point — uses the holding's exact scheme_code when present.
 const fetchLiveNav = async (fundName, schemeCode) => {
   if (schemeCode) return fetchNavByCode(schemeCode);
   return fetchLiveNavBySearch(fundName);
@@ -168,6 +162,8 @@ function KycBanner({ kycStatus, navigate }) {
 
 function Dashboard() {
   const navigate = useNavigate();
+  // ✅ KYC status from shared context — no independent fetch here anymore
+  const { kycStatus } = useKyc();
   const [filter, setFilter] = useState("thisMonth");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
@@ -176,7 +172,6 @@ function Dashboard() {
   const [portfolio, setPortfolio] = useState(null);
   const [portfolioWithNav, setPortfolioWithNav] = useState([]);
   const [userName, setUserName] = useState("User");
-  const [kycStatus, setKycStatus] = useState(null);
   const [tagline] = useState(() => TAGLINES[Math.floor(Math.random() * TAGLINES.length)]);
   const [realCurrentValue, setRealCurrentValue] = useState(0);
   const [navLoaded, setNavLoaded] = useState(false);
@@ -195,21 +190,6 @@ function Dashboard() {
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) return;
-    // ✅ Check localStorage cache first — prevents 429 rate limit errors
-    const cachedKyc = localStorage.getItem("kycStatus");
-    if (cachedKyc) setKycStatus(cachedKyc);
-
-    apiFetch(`${KYC_SERVICE_URL}/api/kyc/status`)
-      .then(r => r.json())
-      .then(d => {
-        const status = d.status || "NOT_SUBMITTED";
-        setKycStatus(status);
-        localStorage.setItem("kycStatus", status); // ✅ Cache it
-      })
-      .catch(() => {
-        // ✅ On error — use cached value, don't reset to NOT_SUBMITTED!
-        setKycStatus(cachedKyc || "NOT_SUBMITTED");
-      });
     apiFetch(`${TRANSACTION_SERVICE_URL}/api/transactions/portfolio`)
       .then(r => r.json()).then(async (data) => {
         setPortfolio(data);
@@ -217,7 +197,6 @@ function Dashboard() {
         if (holdings.length === 0) { setNavLoaded(true); return; }
         let totalCurrentValue = 0;
         const withNav = await Promise.all(holdings.map(async (h) => {
-          // ✅ Use exact scheme_code from the holding when available
           const liveNav = await fetchLiveNav(h.fund_id, h.scheme_code);
           const units = parseFloat(h.total_units || 0);
           const currentValue = liveNav && units > 0 ? units * liveNav : parseFloat(h.invested || 0);
@@ -291,7 +270,6 @@ function Dashboard() {
   const totalGain       = currentValue - totalInvestment;
   const gainPercent     = totalInvestment > 0 ? ((totalGain / totalInvestment) * 100).toFixed(2) : "0.00";
   const activeSips      = sips.filter(s => s.status === "ACTIVE");
-  // ✅ Fixed: sort by date, then by id for same date
   const nextSip = [...activeSips].sort((a, b) => {
     const dateDiff = new Date(a.start_date) - new Date(b.start_date);
     if (dateDiff !== 0) return dateDiff;
@@ -388,14 +366,14 @@ function Dashboard() {
       <div className="main-grid" style={{ marginBottom: "20px" }}>
         <div className="overview-card" style={{ position: "relative" }}>
           <div className="section-head" style={{ flexWrap: "wrap", gap: "8px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-  <h3>Portfolio Overview</h3>
-  <select value={filter} onChange={e => { setFilter(e.target.value); if (e.target.value !== "custom") { setFromDate(""); setToDate(""); } }}
-    style={{ width: "auto", maxWidth: "160px", fontSize: "13px", padding: "6px 10px", borderRadius: "8px", border: "1px solid #e5e7eb", color: "#374151", cursor: "pointer" }}>
-    <option value="thisMonth">This Month</option>
-    <option value="lastMonth">Last Month</option>
-    <option value="custom">Custom Range</option>
-  </select>
-</div>
+            <h3>Portfolio Overview</h3>
+            <select value={filter} onChange={e => { setFilter(e.target.value); if (e.target.value !== "custom") { setFromDate(""); setToDate(""); } }}
+              style={{ width: "auto", maxWidth: "160px", fontSize: "13px", padding: "6px 10px", borderRadius: "8px", border: "1px solid #e5e7eb", color: "#374151", cursor: "pointer" }}>
+              <option value="thisMonth">This Month</option>
+              <option value="lastMonth">Last Month</option>
+              <option value="custom">Custom Range</option>
+            </select>
+          </div>
           {filter === "custom" && (
             <div style={{ marginTop: "12px", marginBottom: "8px" }}>
               <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
@@ -457,7 +435,6 @@ function Dashboard() {
               <>
                 <p style={{ fontSize: "12px", margin: "4px 0" }}>{nextSip.fund_name.length > 28 ? nextSip.fund_name.slice(0,28) + "…" : nextSip.fund_name}</p>
                 <span style={{ fontSize: "12px", color: "#6b7280" }}>{formatDate(nextSip.start_date)}</span>
-                {/* ✅ Fixed: removed minus sign */}
                 <h2 style={{ color: "#6C3AED" }}>{formatCurrency(nextSip.amount)}</h2>
               </>
             ) : (

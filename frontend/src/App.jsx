@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { KycProvider } from './utils/KycContext';
 import { LandingPage } from './features/landing/pages/Landpage';
 import Register from './features/auth/pages/register';
 import Login from './features/auth/pages/Login';
@@ -33,50 +34,46 @@ function ProtectedRoute({ children }) {
 function App() {
   return (
     <BrowserRouter>
-      <main style={{ minHeight: '100vh', background: 'var(--lp-bg)' }}>
-        <Routes>
-          <Route path="/" element={<LandingPage />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/kyc" element={<KycPage />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/profile" element={<Navigate to="/user/profile" replace />} />
-          <Route path="/mutual-fund" element={<MutualFundPage />} />
-          <Route path="/mutual-fund/:schemeCode" element={<MutualFundDetailPage />} />
-          <Route path="/mutual-fund/watchlist" element={<ProtectedRoute><WatchlistPage /></ProtectedRoute>} />
-          <Route path="/watchlist" element={<Navigate to="/mutual-fund/watchlist" replace />} />
-          <Route path="/sip" element={<Navigate to="/user/sip" replace />} />
-          <Route path="/user/sip" element={<ProtectedRoute><SipPage /></ProtectedRoute>} />
-          <Route path="/portfolio" element={<ProtectedRoute><PortfolioPage /></ProtectedRoute>} />
-          <Route path="/user/portfolio" element={<Navigate to="/portfolio" replace />} />
-          <Route path="/transactions" element={<ProtectedRoute><TransactionPage /></ProtectedRoute>} />
-          <Route path="/user/transaction" element={<Navigate to="/transactions" replace />} />
-          <Route path="/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
-
-          {/* ── Calculators ────────────────────────────────────────────────
-              /calculators/sip     → PUBLIC — non-logged-in users, PublicLayout
-              /calculators/lumpsum → PUBLIC — non-logged-in users, PublicLayout
-              /calculators         → PROTECTED — logged-in users, DashboardLayout
-                                     Sidebar link points here; fund detail page
-                                     also links here with ?fundName=&return= params
-          ──────────────────────────────────────────────────────────────── */}
-          <Route path="/calculators/sip" element={<SipCalculator />} />
-          <Route path="/calculators/lumpsum" element={<LumpsumCalculator />} />
-          <Route path="/calculators" element={<ProtectedRoute><Calculators /></ProtectedRoute>} />
-
-          <Route path="/user/profile" element={<Navigate to="/user/profile/basic-details" replace />} />
-          <Route path="/user/profile/basic-details" element={<ProtectedRoute><BasicDetails /></ProtectedRoute>} />
-          <Route path="/user/profile/report" element={<ProtectedRoute><ReportPage /></ProtectedRoute>} />
-          <Route path="/reports" element={<Navigate to="/user/profile/report" replace />} />
-          <Route path="/user/profile/change-password" element={<ProtectedRoute><ChangePassword /></ProtectedRoute>} />
-          <Route path="/user/profile/kyc" element={<ProtectedRoute><ProfileKycPage /></ProtectedRoute>} />
-          <Route path="/help" element={<HelpPage />} />
-          <Route path="/support" element={<Navigate to="/help" replace />} />
-          <Route path="/user/logout" element={<LogoutPage />} />
-          <Route path="/forgot-password" element={<ForgotPassword />} />
-          <Route path="/reset-password" element={<ResetPassword />} />
-        </Routes>
-      </main>
+      {/* ✅ KycProvider wraps everything so useKyc() works in any component.
+          Without this, Dashboard, ProfileLayout, BasicDetails and KycPage
+          would all throw "useKyc must be used within a KycProvider". */}
+      <KycProvider>
+        <main style={{ minHeight: '100vh', background: 'var(--lp-bg)' }}>
+          <Routes>
+            <Route path="/" element={<LandingPage />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/kyc" element={<KycPage />} />
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/profile" element={<Navigate to="/user/profile" replace />} />
+            <Route path="/mutual-fund" element={<MutualFundPage />} />
+            <Route path="/mutual-fund/:schemeCode" element={<MutualFundDetailPage />} />
+            <Route path="/mutual-fund/watchlist" element={<ProtectedRoute><WatchlistPage /></ProtectedRoute>} />
+            <Route path="/watchlist" element={<Navigate to="/mutual-fund/watchlist" replace />} />
+            <Route path="/sip" element={<Navigate to="/user/sip" replace />} />
+            <Route path="/user/sip" element={<ProtectedRoute><SipPage /></ProtectedRoute>} />
+            <Route path="/portfolio" element={<ProtectedRoute><PortfolioPage /></ProtectedRoute>} />
+            <Route path="/user/portfolio" element={<Navigate to="/portfolio" replace />} />
+            <Route path="/transactions" element={<ProtectedRoute><TransactionPage /></ProtectedRoute>} />
+            <Route path="/user/transaction" element={<Navigate to="/transactions" replace />} />
+            <Route path="/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
+            <Route path="/calculators/sip" element={<SipCalculator />} />
+            <Route path="/calculators/lumpsum" element={<LumpsumCalculator />} />
+            <Route path="/calculators" element={<ProtectedRoute><Calculators /></ProtectedRoute>} />
+            <Route path="/user/profile" element={<Navigate to="/user/profile/basic-details" replace />} />
+            <Route path="/user/profile/basic-details" element={<ProtectedRoute><BasicDetails /></ProtectedRoute>} />
+            <Route path="/user/profile/report" element={<ProtectedRoute><ReportPage /></ProtectedRoute>} />
+            <Route path="/reports" element={<Navigate to="/user/profile/report" replace />} />
+            <Route path="/user/profile/change-password" element={<ProtectedRoute><ChangePassword /></ProtectedRoute>} />
+            <Route path="/user/profile/kyc" element={<ProtectedRoute><ProfileKycPage /></ProtectedRoute>} />
+            <Route path="/help" element={<HelpPage />} />
+            <Route path="/support" element={<Navigate to="/help" replace />} />
+            <Route path="/user/logout" element={<LogoutPage />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
+          </Routes>
+        </main>
+      </KycProvider>
     </BrowserRouter>
   );
 }
